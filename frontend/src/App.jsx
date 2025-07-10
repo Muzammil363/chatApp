@@ -10,10 +10,13 @@ import 'aos/dist/aos.css';
 import './App.css';
 import Landing from './pages/Landing';
 import AuthComponent from './components/AuthComponent';
-import { createBrowserRouter,RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import Home from './components/Home';
 import Profile from './components/Profile';
 import Request from './components/Request';
+import { Toaster } from 'react-hot-toast';
+import RootLayout from './components/RootLayout.jsx'
+import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 function App() {
   useEffect(() => {
@@ -24,31 +27,44 @@ function App() {
     });
   }, []);
 
-  const router=createBrowserRouter([
+  const router = createBrowserRouter([
     {
-      path:'/',
-      element:<Landing />
+      path: '/',
+      element: <Landing />
     },
     {
-      path:'/auth',
-      element:<AuthComponent />
+      path: '/auth',
+      element: <AuthComponent />
     },
     {
-      path:'/home',
-      element:<Home />
-    },
-    {
-      path:'/profile',
-      element:<Profile />
-    },
-    {
-      path:'/requests',
-      element:<Request />
+      path: '/u',
+      element: <ProtectedRoute />,
+      children: [
+        {
+          path:'',
+          element: <RootLayout />,
+          children: [
+            {
+              path: 'home',
+              element: <Home />
+            },
+            {
+              path: 'profile',
+              element: <Profile />
+            },
+            {
+              path: 'requests',
+              element: <Request />
+            }
+          ]
+        },
+      ]
     }
   ])
   return (
     <div className="App">
-        <RouterProvider router={router} />
+      <Toaster position='top center' />
+      <RouterProvider router={router} />
     </div>
   );
 }

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import styles from '../styles/Home.module.css';
 
+
 const Home = () => {
   const [selectedContact, setSelectedContact] = useState(null);
   const [showConversation, setShowConversation] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [connected, setConnected] = useState(false);
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState({});
@@ -79,9 +81,32 @@ const Home = () => {
     ]
   };
 
-  useEffect(() => {
-    setMessages(mockMessages);
-  }, []);
+  // useEffect(() => {
+  //   setMessages(mockMessages);
+  //   if (socket.connected) {
+  //     console.log("Already connected with socket id:", socket.id);
+  //     setConnected(true);
+  //   }
+
+  //   const onConnect = () => {
+  //     console.log("Connected with socket id:", socket.id);
+  //     setConnected(true);
+  //   };
+
+  //   const onDisconnect = () => {
+  //     console.log("Disconnected from socket.");
+  //     setConnected(false);
+  //   };
+
+  //   socket.on("connect", onConnect);
+  //   socket.on("disconnect", onDisconnect);
+
+  //   // Cleanup
+  //   return () => {
+  //     socket.off("connect", onConnect);
+  //     socket.off("disconnect", onDisconnect);
+  //   };
+  // }, []);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -139,38 +164,7 @@ const Home = () => {
   return (
     <div className={styles.homeContainer}>
       {/* Navigation Bar */}
-      <nav className={styles.navbar}>
-        <div className={styles.navContent}>
-          <div className={styles.logo}>
-            <div className={styles.logoIcon}>💬</div>
-            <h2 className={styles.brandName}>ChatApp</h2>
-          </div>
-          
-          <div className={`${styles.navLinks} ${menuOpen ? styles.navLinksOpen : ''}`}>
-            <a href="#" className={styles.navLink}>
-              <span className={styles.navIcon}>🏠</span>
-              Home
-            </a>
-            <a href="#" className={styles.navLink}>
-              <span className={styles.navIcon}>👤</span>
-              Profile
-            </a>
-            <a href="#" className={styles.navLink}>
-              <span className={styles.navIcon}>📨</span>
-              Requests
-            </a>
-          </div>
-          
-          <button 
-            className={styles.menuToggle}
-            onClick={() => setMenuOpen(!menuOpen)}
-          >
-            <span></span>
-            <span></span>
-            <span></span>
-          </button>
-        </div>
-      </nav>
+      
 
       {/* Main Chat Interface */}
       <div className={styles.chatContainer}>

@@ -8,13 +8,21 @@ import cookieParser from "cookie-parser";
 import userRouter from './routes/user.js';
 import { connectMongo } from "./connections/mongo.js";
 import messageRouter from './routes/Message.js'
+import cors from "cors"
+import { Server } from "socket.io";
+import { socketActions } from "./connections/Socket.js";
 configDotenv();
 
 
 connectMongo();
 const app=express();
+app.use(express.json());
 app.use(express.urlencoded({extended:true}));
 app.use(cookieParser());
+app.use(cors({
+  origin: 'http://localhost:5173', // your frontend origin (update if using a different port)
+  credentials: true               // allow sending cookies (important!)
+}));
 
 app.use("/api/auth",authRouter);
 app.use('/user',userRouter);
@@ -29,6 +37,16 @@ app.get("/protected",authMiddleware,(req,res)=>{
     return res.status(200).json({message:"validated"});
 })
 
-app.listen(3000,()=>{
+const server=app.listen(3000,()=>{
     console.log("backend started on 3000");
-})
+});
+
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:5173", 
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
+
+io.on("connection",socketActions)

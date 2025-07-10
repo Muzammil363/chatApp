@@ -1,5 +1,6 @@
 import React from 'react';
 import styles from '../styles/Hero.module.css';
+import { Link } from 'react-router-dom';
 
 const Hero = () => {
   return (
@@ -16,7 +17,9 @@ const Hero = () => {
             <a href="#features">Features</a>
             <a href="#about">About</a>
             <a href="#testimonials">Testimonials</a>
+            <Link to={'/auth'}>
             <button className={styles.loginBtn}>Login</button>
+            </Link>
           </div>
         </nav>
         
@@ -28,7 +31,9 @@ const Hero = () => {
             </h1>
             <p>Experience seamless messaging with our modern chat platform. Send messages, share files, and stay connected with your loved ones instantly.</p>
             <div className={styles.heroButtons}>
+              <Link to={'/auth'}>
               <button className={styles.primaryBtn}>Get Started Free</button>
+              </Link>
               <button className={styles.secondaryBtn}>Watch Demo</button>
             </div>
           </div>

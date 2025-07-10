@@ -1,6 +1,6 @@
 import cloudinary from '../connections/cloudinary.js';
 import { Messages } from '../models/Messages.js'
-import { User } from '../models/User';
+import { User } from '../models/User.js';
 
 export const getMessagesForId = async (req, res) => {
     const email = req.params.id; // fetch Conversations with 

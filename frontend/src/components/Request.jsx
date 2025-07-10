@@ -1,422 +1,395 @@
 import React, { useState, useEffect } from 'react';
 import styles from '../styles/Request.module.css';
+import { findUser } from '../services/Request';
 
 const Request = () => {
-  const [activeTab, setActiveTab] = useState('received');
-  const [showSearch, setShowSearch] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [receivedRequests, setReceivedRequests] = useState([]);
-  const [sentRequests, setSentRequests] = useState([]);
+    const [activeTab, setActiveTab] = useState('received');
+    const [showSearch, setShowSearch] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedTerm, setDebouncedTerm] = useState(searchQuery);
+    const [searchResults, setSearchResults] = useState([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [receivedRequests, setReceivedRequests] = useState([]);
+    const [sentRequests, setSentRequests] = useState([]);
 
-  // Mock data for received requests
-  const mockReceivedRequests = [
-    {
-      id: 1,
-      name: 'Alex Thompson',
-      avatar: '👨‍💼',
-      mutualFriends: 5,
-      time: '2 hours ago',
-      bio: 'Software Engineer at TechCorp'
-    },
-    {
-      id: 2,
-      name: 'Maria Garcia',
-      avatar: '👩‍🎨',
-      mutualFriends: 12,
-      time: '5 hours ago',
-      bio: 'Digital Artist & Designer'
-    },
-    {
-      id: 3,
-      name: 'James Wilson',
-      avatar: '👨‍🔬',
-      mutualFriends: 3,
-      time: '1 day ago',
-      bio: 'Research Scientist'
-    },
-    {
-      id: 4,
-      name: 'Sophie Chen',
-      avatar: '👩‍💻',
-      mutualFriends: 8,
-      time: '2 days ago',
-      bio: 'Full Stack Developer'
-    }
-  ];
+    // Mock data for received requests
+    const mockReceivedRequests = [
+        {
+            id: 1,
+            name: 'Alex Thompson',
+            avatar: '👨‍💼',
+            mutualFriends: 5,
+            time: '2 hours ago',
+            bio: 'Software Engineer at TechCorp'
+        },
+        {
+            id: 2,
+            name: 'Maria Garcia',
+            avatar: '👩‍🎨',
+            mutualFriends: 12,
+            time: '5 hours ago',
+            bio: 'Digital Artist & Designer'
+        },
+        {
+            id: 3,
+            name: 'James Wilson',
+            avatar: '👨‍🔬',
+            mutualFriends: 3,
+            time: '1 day ago',
+            bio: 'Research Scientist'
+        },
+        {
+            id: 4,
+            name: 'Sophie Chen',
+            avatar: '👩‍💻',
+            mutualFriends: 8,
+            time: '2 days ago',
+            bio: 'Full Stack Developer'
+        }
+    ];
 
-  // Mock data for sent requests
-  const mockSentRequests = [
-    {
-      id: 1,
-      name: 'Robert Davis',
-      avatar: '👨‍🏫',
-      time: '1 hour ago',
-      status: 'pending',
-      bio: 'University Professor'
-    },
-    {
-      id: 2,
-      name: 'Emma Johnson',
-      avatar: '👩‍⚕️',
-      time: '3 hours ago',
-      status: 'pending',
-      bio: 'Medical Doctor'
-    },
-    {
-      id: 3,
-      name: 'Michael Brown',
-      avatar: '👨‍🎵',
-      time: '1 day ago',
-      status: 'pending',
-      bio: 'Music Producer'
-    }
-  ];
+    // Mock data for sent requests
+    const mockSentRequests = [
+        {
+            id: 1,
+            name: 'Robert Davis',
+            avatar: '👨‍🏫',
+            time: '1 hour ago',
+            status: 'pending',
+            bio: 'University Professor'
+        },
+        {
+            id: 2,
+            name: 'Emma Johnson',
+            avatar: '👩‍⚕️',
+            time: '3 hours ago',
+            status: 'pending',
+            bio: 'Medical Doctor'
+        },
+        {
+            id: 3,
+            name: 'Michael Brown',
+            avatar: '👨‍🎵',
+            time: '1 day ago',
+            status: 'pending',
+            bio: 'Music Producer'
+        }
+    ];
 
-  // Mock data for search results
-  const mockUsers = [
-    {
-      id: 1,
-      name: 'Jennifer Lee',
-      avatar: '👩‍💼',
-      mutualFriends: 7,
-      bio: 'Marketing Manager',
-      status: 'available'
-    },
-    {
-      id: 2,
-      name: 'Daniel Kim',
-      avatar: '👨‍💻',
-      mutualFriends: 4,
-      bio: 'Frontend Developer',
-      status: 'available'
-    },
-    {
-      id: 3,
-      name: 'Rachel Green',
-      avatar: '👩‍🎓',
-      mutualFriends: 15,
-      bio: 'Data Scientist',
-      status: 'available'
-    },
-    {
-      id: 4,
-      name: 'Tom Anderson',
-      avatar: '👨‍🎨',
-      mutualFriends: 2,
-      bio: 'Graphic Designer',
-      status: 'available'
-    },
-    {
-      id: 5,
-      name: 'Lisa Wang',
-      avatar: '👩‍🔬',
-      mutualFriends: 9,
-      bio: 'Biochemist',
-      status: 'available'
-    },
-    {
-      id: 6,
-      name: 'Chris Miller',
-      avatar: '👨‍⚖️',
-      mutualFriends: 6,
-      bio: 'Legal Advisor',
-      status: 'available'
-    }
-  ];
+    // Mock data for search results
+    const mockUsers = [
+        {
+            id: 1,
+            name: 'Jennifer Lee',
+            avatar: '👩‍💼',
+            mutualFriends: 7,
+            bio: 'Marketing Manager',
+            status: 'available'
+        },
+        {
+            id: 2,
+            name: 'Daniel Kim',
+            avatar: '👨‍💻',
+            mutualFriends: 4,
+            bio: 'Frontend Developer',
+            status: 'available'
+        },
+        {
+            id: 3,
+            name: 'Rachel Green',
+            avatar: '👩‍🎓',
+            mutualFriends: 15,
+            bio: 'Data Scientist',
+            status: 'available'
+        },
+        {
+            id: 4,
+            name: 'Tom Anderson',
+            avatar: '👨‍🎨',
+            mutualFriends: 2,
+            bio: 'Graphic Designer',
+            status: 'available'
+        },
+        {
+            id: 5,
+            name: 'Lisa Wang',
+            avatar: '👩‍🔬',
+            mutualFriends: 9,
+            bio: 'Biochemist',
+            status: 'available'
+        },
+        {
+            id: 6,
+            name: 'Chris Miller',
+            avatar: '👨‍⚖️',
+            mutualFriends: 6,
+            bio: 'Legal Advisor',
+            status: 'available'
+        }
+    ];
 
-  useEffect(() => {
-    setReceivedRequests(mockReceivedRequests);
-    setSentRequests(mockSentRequests);
-  }, []);
+    useEffect(() => {
+        setReceivedRequests(mockReceivedRequests);
+        setSentRequests(mockSentRequests);
+    }, []);
 
-  const handleSearch = (query) => {
-    setSearchQuery(query);
-    if (query.trim()) {
-      setIsSearching(true);
-      // Simulate API call delay
-      setTimeout(() => {
-        const filtered = mockUsers.filter(user =>
-          user.name.toLowerCase().includes(query.toLowerCase()) ||
-          user.bio.toLowerCase().includes(query.toLowerCase())
-        );
-        setSearchResults(filtered);
-        setIsSearching(false);
-      }, 500);
-    } else {
-      setSearchResults(mockUsers);
-      setIsSearching(false);
-    }
-  };
+    useEffect(() => {
+        let timer=setTimeout(()=>{
+            setDebouncedTerm(searchQuery);
+        },500)
 
-  const handleShowSearch = () => {
-    setShowSearch(true);
-    setSearchResults(mockUsers);
-  };
+        return () => clearTimeout(timer);
+    }, [searchQuery])
 
-  const handleBackToRequests = () => {
-    setShowSearch(false);
-    setSearchQuery('');
-    setSearchResults([]);
-  };
+    useEffect(()=>{
+        if(debouncedTerm.trim()=='') {
+            setSearchResults([]);
+            return ;
+        }
 
-  const handleAcceptRequest = (requestId) => {
-    setReceivedRequests(prev => prev.filter(req => req.id !== requestId));
-    console.log('Accepted request:', requestId);
-  };
+        async function loadData() {
+            let data=await findUser(debouncedTerm);
+            setSearchResults(data.result);
+        }
+        loadData();
+    },[debouncedTerm])
 
-  const handleDeclineRequest = (requestId) => {
-    setReceivedRequests(prev => prev.filter(req => req.id !== requestId));
-    console.log('Declined request:', requestId);
-  };
+    const handleShowSearch = () => {
+        setShowSearch(true);
+        setSearchResults(mockUsers);
+    };
 
-  const handleCancelRequest = (requestId) => {
-    setSentRequests(prev => prev.filter(req => req.id !== requestId));
-    console.log('Cancelled request:', requestId);
-  };
+    const handleBackToRequests = () => {
+        setShowSearch(false);
+        setSearchQuery('');
+        setSearchResults([]);
+    };
 
-  const handleSendRequest = (userId) => {
-    console.log('Sent request to user:', userId);
-    setSearchResults(prev => prev.map(user => 
-      user.id === userId ? { ...user, status: 'sent' } : user
-    ));
-  };
+    const handleAcceptRequest = (requestId) => {
+        setReceivedRequests(prev => prev.filter(req => req.id !== requestId));
+        console.log('Accepted request:', requestId);
+    };
 
-  return (
-    <div className={styles.requestContainer}>
-      {/* Navigation Bar */}
-      <nav className={styles.navbar}>
-        <div className={styles.navContent}>
-          <div className={styles.logo}>
-            <div className={styles.logoIcon}>💬</div>
-            <h2 className={styles.brandName}>ChatApp</h2>
-          </div>
-          
-          <div className={styles.navLinks}>
-            <a href="#" className={styles.navLink}>
-              <span className={styles.navIcon}>🏠</span>
-              Home
-            </a>
-            <a href="#" className={styles.navLink}>
-              <span className={styles.navIcon}>👤</span>
-              Profile
-            </a>
-            <a href="#" className={`${styles.navLink} ${styles.active}`}>
-              <span className={styles.navIcon}>📨</span>
-              Requests
-            </a>
-          </div>
-        </div>
-      </nav>
+    const handleDeclineRequest = (requestId) => {
+        setReceivedRequests(prev => prev.filter(req => req.id !== requestId));
+        console.log('Declined request:', requestId);
+    };
 
-      {/* Main Content */}
-      <div className={styles.requestContent}>
-        <div className={styles.requestCard}>
-          {!showSearch ? (
-            <>
-              {/* Requests Header */}
-              <div className={styles.requestHeader}>
-                <h1>Friend Requests</h1>
-                <p>Manage your connection requests</p>
-                <button 
-                  className={styles.searchPeopleBtn}
-                  onClick={handleShowSearch}
-                >
-                  <span className={styles.searchIcon}>🔍</span>
-                  Search for People
-                </button>
-              </div>
+    const handleCancelRequest = (requestId) => {
+        setSentRequests(prev => prev.filter(req => req.id !== requestId));
+        console.log('Cancelled request:', requestId);
+    };
 
-              {/* Tabs */}
-              <div className={styles.tabsContainer}>
-                <button 
-                  className={`${styles.tab} ${activeTab === 'received' ? styles.activeTab : ''}`}
-                  onClick={() => setActiveTab('received')}
-                >
-                  <span className={styles.tabIcon}>📥</span>
-                  Received ({receivedRequests.length})
-                </button>
-                <button 
-                  className={`${styles.tab} ${activeTab === 'sent' ? styles.activeTab : ''}`}
-                  onClick={() => setActiveTab('sent')}
-                >
-                  <span className={styles.tabIcon}>📤</span>
-                  Sent ({sentRequests.length})
-                </button>
-              </div>
+    const handleSendRequest = (userId) => {
+        console.log('Sent request to user:', userId);
+    };
 
-              {/* Request Lists */}
-              <div className={styles.requestsList}>
-                {activeTab === 'received' && (
-                  <div className={styles.receivedRequests}>
-                    {receivedRequests.length > 0 ? (
-                      receivedRequests.map(request => (
-                        <div key={request.id} className={styles.reqCard}>
-                          <div className={styles.requestAvatar}>
-                            <span>{request.avatar}</span>
-                          </div>
-                          <div className={styles.requestInfo}>
-                            <h4>{request.name}</h4>
-                            <p className={styles.requestBio}>{request.bio}</p>
-                            <div className={styles.requestMeta}>
-                              <span className={styles.mutualFriends}>
-                                {request.mutualFriends} mutual friends
-                              </span>
-                              <span className={styles.requestTime}>{request.time}</span>
+    return (
+        <div className={styles.requestContainer}>
+            {/* Main Content */}
+            <div className={styles.requestContent}>
+                <div className={styles.requestCard}>
+                    {!showSearch ? (
+                        <>
+                            {/* Requests Header */}
+                            <div className={styles.requestHeader}>
+                                <h1>Friend Requests</h1>
+                                <p>Manage your connection requests</p>
+                                <button
+                                    className={styles.searchPeopleBtn}
+                                    onClick={handleShowSearch}
+                                >
+                                    <span className={styles.searchIcon}>🔍</span>
+                                    Search for People
+                                </button>
                             </div>
-                          </div>
-                          <div className={styles.requestActions}>
-                            <button 
-                              className={styles.acceptBtn}
-                              onClick={() => handleAcceptRequest(request.id)}
-                            >
-                              Accept
-                            </button>
-                            <button 
-                              className={styles.declineBtn}
-                              onClick={() => handleDeclineRequest(request.id)}
-                            >
-                              Decline
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className={styles.emptyState}>
-                        <span className={styles.emptyIcon}>📭</span>
-                        <h3>No pending requests</h3>
-                        <p>You don't have any friend requests at the moment</p>
-                      </div>
-                    )}
-                  </div>
-                )}
 
-                {activeTab === 'sent' && (
-                  <div className={styles.sentRequests}>
-                    {sentRequests.length > 0 ? (
-                      sentRequests.map(request => (
-                        <div key={request.id} className={styles.reqCard}>
-                          <div className={styles.requestAvatar}>
-                            <span>{request.avatar}</span>
-                          </div>
-                          <div className={styles.requestInfo}>
-                            <h4>{request.name}</h4>
-                            <p className={styles.requestBio}>{request.bio}</p>
-                            <div className={styles.requestMeta}>
-                              <span className={styles.requestStatus}>Pending</span>
-                              <span className={styles.requestTime}>{request.time}</span>
+                            {/* Tabs */}
+                            <div className={styles.tabsContainer}>
+                                <button
+                                    className={`${styles.tab} ${activeTab === 'received' ? styles.activeTab : ''}`}
+                                    onClick={() => setActiveTab('received')}
+                                >
+                                    <span className={styles.tabIcon}>📥</span>
+                                    Received ({receivedRequests.length})
+                                </button>
+                                <button
+                                    className={`${styles.tab} ${activeTab === 'sent' ? styles.activeTab : ''}`}
+                                    onClick={() => setActiveTab('sent')}
+                                >
+                                    <span className={styles.tabIcon}>📤</span>
+                                    Sent ({sentRequests.length})
+                                </button>
                             </div>
-                          </div>
-                          <div className={styles.requestActions}>
-                            <button 
-                              className={styles.cancelBtn}
-                              onClick={() => handleCancelRequest(request.id)}
-                            >
-                              Cancel Request
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className={styles.emptyState}>
-                        <span className={styles.emptyIcon}>📤</span>
-                        <h3>No sent requests</h3>
-                        <p>You haven't sent any friend requests yet</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Search Header */}
-              <div className={styles.searchHeader}>
-                <button 
-                  className={styles.backBtn}
-                  onClick={handleBackToRequests}
-                >
-                  ← Back to Requests
-                </button>
-                <h1>Find People</h1>
-                <p>Discover and connect with new people</p>
-              </div>
 
-              {/* Search Bar */}
-              <div className={styles.searchSection}>
-                <div className={styles.searchBar}>
-                  <span className={styles.searchIcon}>🔍</span>
-                  <input
-                    type="text"
-                    placeholder="Search by name or profession..."
-                    value={searchQuery}
-                    onChange={(e) => handleSearch(e.target.value)}
-                    className={styles.searchInput}
-                    autoFocus
-                  />
-                  {searchQuery && (
-                    <button 
-                      className={styles.clearSearch}
-                      onClick={() => handleSearch('')}
-                    >
-                      ✕
-                    </button>
-                  )}
+                            {/* Request Lists */}
+                            <div className={styles.requestsList}>
+                                {activeTab === 'received' && (
+                                    <div className={styles.receivedRequests}>
+                                        {receivedRequests.length > 0 ? (
+                                            receivedRequests.map(request => (
+                                                <div key={request.id} className={styles.reqCard}>
+                                                    <div className={styles.requestAvatar}>
+                                                        <span>{request.avatar}</span>
+                                                    </div>
+                                                    <div className={styles.requestInfo}>
+                                                        <h4>{request.name}</h4>
+                                                        <p className={styles.requestBio}>{request.bio}</p>
+                                                        <div className={styles.requestMeta}>
+                                                            <span className={styles.mutualFriends}>
+                                                                {request.mutualFriends} mutual friends
+                                                            </span>
+                                                            <span className={styles.requestTime}>{request.time}</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className={styles.requestActions}>
+                                                        <button
+                                                            className={styles.acceptBtn}
+                                                            onClick={() => handleAcceptRequest(request.id)}
+                                                        >
+                                                            Accept
+                                                        </button>
+                                                        <button
+                                                            className={styles.declineBtn}
+                                                            onClick={() => handleDeclineRequest(request.id)}
+                                                        >
+                                                            Decline
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className={styles.emptyState}>
+                                                <span className={styles.emptyIcon}>📭</span>
+                                                <h3>No pending requests</h3>
+                                                <p>You don't have any friend requests at the moment</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {activeTab === 'sent' && (
+                                    <div className={styles.sentRequests}>
+                                        {sentRequests.length > 0 ? (
+                                            sentRequests.map(request => (
+                                                <div key={request.id} className={styles.reqCard}>
+                                                    <div className={styles.requestAvatar}>
+                                                        <span>{request.avatar}</span>
+                                                    </div>
+                                                    <div className={styles.requestInfo}>
+                                                        <h4>{request.name}</h4>
+                                                        <p className={styles.requestBio}>{request.bio}</p>
+                                                        <div className={styles.requestMeta}>
+                                                            <span className={styles.requestStatus}>Pending</span>
+                                                            <span className={styles.requestTime}>{request.time}</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className={styles.requestActions}>
+                                                        <button
+                                                            className={styles.cancelBtn}
+                                                            onClick={() => handleCancelRequest(request.id)}
+                                                        >
+                                                            Cancel Request
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className={styles.emptyState}>
+                                                <span className={styles.emptyIcon}>📤</span>
+                                                <h3>No sent requests</h3>
+                                                <p>You haven't sent any friend requests yet</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            {/* Search Header */}
+                            <div className={styles.searchHeader}>
+                                <button
+                                    className={styles.backBtn}
+                                    onClick={handleBackToRequests}
+                                >
+                                    ← Back to Requests
+                                </button>
+                                <h1>Find People</h1>
+                                <p>Discover and connect with new people</p>
+                            </div>
+
+                            {/* Search Bar */}
+                            <div className={styles.searchSection}>
+                                <div className={styles.searchBar}>
+                                    <span className={styles.searchIcon}>🔍</span>
+                                    <input
+                                        type="text"
+                                        placeholder="Search by name or profession..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className={styles.searchInput}
+                                        autoFocus
+                                    />
+                                    {searchQuery && (
+                                        <button
+                                            className={styles.clearSearch}
+                                            onClick={() => setSearchQuery('')}
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Search Results */}
+                            <div className={styles.searchResults}>
+                                {isSearching ? (
+                                    <div className={styles.loadingState}>
+                                        <div className={styles.spinner}></div>
+                                        <p>Searching...</p>
+                                    </div>
+                                ) : searchResults.length > 0 ? (
+                                    <div className={styles.usersList}>
+                                        {searchResults.map(user => (
+                                            <div key={user.email} className={styles.uCard}>
+                                                <div className={styles.userAvatar}>
+                                                    <span>{user.avatar}</span> 
+                                                    {/* To be changed to use img with user.profilePic */}
+                                                </div>
+                                                <div className={styles.userInfo}>
+                                                    <h4>{user.fullName}</h4>
+                                                    <p className={styles.userBio}>{user.bio}</p>
+                                                    <span className={styles.mutualFriends}>
+                                                        {user.email} 
+                                                    </span>
+                                                </div>
+                                                <div className={styles.userActions}>
+                                                   
+                                                        <button
+                                                            className={styles.sendRequestBtn}
+                                                            onClick={() => handleSendRequest(user.email)}
+                                                        >
+                                                            Add Friend
+                                                        </button>
+                                                   
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className={styles.noResults}>
+                                        <span className={styles.noResultsIcon}>🔍</span>
+                                        <p>No users found{searchQuery && ` matching "${searchQuery}"`}</p>
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
                 </div>
-              </div>
-
-              {/* Search Results */}
-              <div className={styles.searchResults}>
-                {isSearching ? (
-                  <div className={styles.loadingState}>
-                    <div className={styles.spinner}></div>
-                    <p>Searching...</p>
-                  </div>
-                ) : searchResults.length > 0 ? (
-                  <div className={styles.usersList}>
-                    {searchResults.map(user => (
-                      <div key={user.id} className={styles.uCard}>
-                        <div className={styles.userAvatar}>
-                          <span>{user.avatar}</span>
-                        </div>
-                        <div className={styles.userInfo}>
-                          <h4>{user.name}</h4>
-                          <p className={styles.userBio}>{user.bio}</p>
-                          <span className={styles.mutualFriends}>
-                            {user.mutualFriends} mutual friends
-                          </span>
-                        </div>
-                        <div className={styles.userActions}>
-                          {user.status === 'available' ? (
-                            <button 
-                              className={styles.sendRequestBtn}
-                              onClick={() => handleSendRequest(user.id)}
-                            >
-                              Add Friend
-                            </button>
-                          ) : (
-                            <button className={styles.sentBtn} disabled>
-                              Request Sent
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className={styles.noResults}>
-                    <span className={styles.noResultsIcon}>🔍</span>
-                    <p>No users found{searchQuery && ` matching "${searchQuery}"`}</p>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+            </div>
         </div>
-      </div>
-    </div>
-  );
+    );
 };
 
 export default Request;

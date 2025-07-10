@@ -1,22 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect } from 'react';
 import styles from '../styles/Profile.module.css';
+import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { authActions } from '../store/index.js';
+import { fetchProfile } from '../services/User.js';
 
 const Profile = () => {
-  const [user, setUser] = useState({
-    fullName: 'John Doe',
-    email: 'john.doe@example.com',
-    profilePhoto: '👤'
-  });
-
+  const navigate=useNavigate();
+  const dispatch=useDispatch();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [isLoading,setIsloading]=useState(true);
+  const [user, setUser] = useState({});
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
-
+  
   const profilePhotos = ['👤', '👨‍💼', '👩‍💼', '👨‍💻', '👩‍💻', '👨‍🎓', '👩‍🎓', '👨‍⚕️', '👩‍⚕️', '👨‍🎨', '👩‍🎨', '👨‍🔬', '👩‍🔬', '👨‍🏫', '👩‍🏫', '🧑‍💼'];
+
+  useEffect(()=>{
+    async function loadData() {
+      let data=await fetchProfile();
+      setUser(data.profile);
+    }
+    loadData();
+  },[]);
 
   const handlePasswordChange = (e) => {
     setPasswordData({
@@ -51,11 +62,10 @@ const Profile = () => {
   };
 
   const handleLogout = () => {
-    if (window.confirm('Are you sure you want to logout?')) {
-      // Here you would typically clear user session and redirect
-      console.log('User logged out');
-      alert('Logged out successfully!');
-    }
+    localStorage.removeItem("accessToken");
+    dispatch(authActions.logout());
+    toast.success("Logged out successfully");
+    navigate("/");
   };
 
   const cancelPasswordChange = () => {
@@ -65,31 +75,6 @@ const Profile = () => {
 
   return (
     <div className={styles.profileContainer}>
-      {/* Navigation Bar */}
-      <nav className={styles.navbar}>
-        <div className={styles.navContent}>
-          <div className={styles.logo}>
-            <div className={styles.logoIcon}>💬</div>
-            <h2 className={styles.brandName}>ChatApp</h2>
-          </div>
-          
-          <div className={styles.navLinks}>
-            <a href="#" className={styles.navLink}>
-              <span className={styles.navIcon}>🏠</span>
-              Home
-            </a>
-            <a href="#" className={styles.navLink}>
-              <span className={styles.navIcon}>📨</span>
-              Requests
-            </a>
-            <a href="#" className={`${styles.navLink} ${styles.active}`}>
-              <span className={styles.navIcon}>👤</span>
-              Profile
-            </a>
-          </div>
-        </div>
-      </nav>
-
       {/* Profile Content */}
       <div className={styles.profileContent}>
         <div className={styles.profileCard}>

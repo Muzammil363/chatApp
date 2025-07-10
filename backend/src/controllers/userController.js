@@ -9,7 +9,7 @@ export const profile = async (req, res) => {
     let user=await User.findOne({email:req.user}).select('email fullName profilePic');
     
     if(user) {
-        return res.status(200).json({ profile:user });
+        return res.status(200).json({ profile:user, message:"Fetched Profile" });
     }
     return res.status(404).json({message:"User not found"});
 }
