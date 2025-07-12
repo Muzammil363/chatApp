@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styles from '../styles/Request.module.css';
-import { findUser } from '../services/Request';
+import { findUser,findRequests, sendRequest, declineRequest ,acceptUser} from '../services/Request';
+import toast from 'react-hot-toast';
 
 const Request = () => {
     const [activeTab, setActiveTab] = useState('received');
@@ -131,7 +132,14 @@ const Request = () => {
     useEffect(() => {
         setReceivedRequests(mockReceivedRequests);
         setSentRequests(mockSentRequests);
-    }, []);
+
+        async function loadRequests() {
+            let data=await findRequests();
+            console.log("data: ",data.requests);
+            setReceivedRequests(data.requests); 
+        }
+        loadRequests();
+    }, [activeTab]);
 
     useEffect(() => {
         let timer=setTimeout(()=>{
@@ -165,14 +173,24 @@ const Request = () => {
         setSearchResults([]);
     };
 
-    const handleAcceptRequest = (requestId) => {
-        setReceivedRequests(prev => prev.filter(req => req.id !== requestId));
-        console.log('Accepted request:', requestId);
+    const handleAcceptRequest = async (requestId) => {
+        let res=await acceptUser(requestId);
+        if(res) {
+            setReceivedRequests(prev => prev.filter(req => req.email!== requestId));
+            console.log('Accepted request:', requestId);
+            toast.success("Accedped "+requestId+"'s request");
+            return ;
+        }
+        toast.error("Something went wrong");
     };
 
-    const handleDeclineRequest = (requestId) => {
-        setReceivedRequests(prev => prev.filter(req => req.id !== requestId));
-        console.log('Declined request:', requestId);
+    const handleDeclineRequest = async(requestId) => {
+        let res=await declineRequest(requestId);
+        if(res) {
+            toast.success("Declined "+requestId+" request");
+            setReceivedRequests(prev => prev.filter(req => req.email !== requestId));
+        }
+        else toast.error("Error while Declining request");
     };
 
     const handleCancelRequest = (requestId) => {
@@ -180,8 +198,9 @@ const Request = () => {
         console.log('Cancelled request:', requestId);
     };
 
-    const handleSendRequest = (userId) => {
+    const handleSendRequest = async (userId) => {
         console.log('Sent request to user:', userId);
+        await sendRequest(userId);
     };
 
     return (
@@ -228,16 +247,17 @@ const Request = () => {
                                     <div className={styles.receivedRequests}>
                                         {receivedRequests.length > 0 ? (
                                             receivedRequests.map(request => (
-                                                <div key={request.id} className={styles.reqCard}>
+                                                <div key={request._id} className={styles.reqCard}>
                                                     <div className={styles.requestAvatar}>
-                                                        <span>{request.avatar}</span>
+                                                        <span>{request.profilePic}</span> 
+                                                        {/* to be handled for user image */}
                                                     </div>
                                                     <div className={styles.requestInfo}>
-                                                        <h4>{request.name}</h4>
+                                                        <h4>{request.fullName}</h4>
                                                         <p className={styles.requestBio}>{request.bio}</p>
                                                         <div className={styles.requestMeta}>
                                                             <span className={styles.mutualFriends}>
-                                                                {request.mutualFriends} mutual friends
+                                                                {request.email}
                                                             </span>
                                                             <span className={styles.requestTime}>{request.time}</span>
                                                         </div>
@@ -245,13 +265,13 @@ const Request = () => {
                                                     <div className={styles.requestActions}>
                                                         <button
                                                             className={styles.acceptBtn}
-                                                            onClick={() => handleAcceptRequest(request.id)}
+                                                            onClick={() => handleAcceptRequest(request.email)}
                                                         >
                                                             Accept
                                                         </button>
                                                         <button
                                                             className={styles.declineBtn}
-                                                            onClick={() => handleDeclineRequest(request.id)}
+                                                            onClick={() => handleDeclineRequest(request.email)}
                                                         >
                                                             Decline
                                                         </button>
@@ -272,7 +292,7 @@ const Request = () => {
                                     <div className={styles.sentRequests}>
                                         {sentRequests.length > 0 ? (
                                             sentRequests.map(request => (
-                                                <div key={request.id} className={styles.reqCard}>
+                                                <div key={request.email} className={styles.reqCard}>
                                                     <div className={styles.requestAvatar}>
                                                         <span>{request.avatar}</span>
                                                     </div>
@@ -287,7 +307,7 @@ const Request = () => {
                                                     <div className={styles.requestActions}>
                                                         <button
                                                             className={styles.cancelBtn}
-                                                            onClick={() => handleCancelRequest(request.id)}
+                                                            onClick={() => handleCancelRequest(request.email)}
                                                         >
                                                             Cancel Request
                                                         </button>

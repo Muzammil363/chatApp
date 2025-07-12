@@ -267,6 +267,45 @@
   color: #1a1a2e;
 }
 
+.acceptBtn {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  color: white;
+  border: 2px solid #1a1a2e;
+  padding: 5px 15px;
+  border-radius: 30px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.secondaryBtn {
+  background: transparent;
+  color: #1a1a2e;
+  border: 2px solid #1a1a2e;
+  padding: 5px 10px;
+  border-radius: 30px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.searchInput {
+  flex: 0.5;
+  padding: 10px 0;
+  border: 2px solid black;
+  border-radius: 5px;
+  padding: 5px 10px;
+  outline: none;
+  font-size: 1rem;
+  background: transparent;
+  color: #333;
+}
+
+.searchInput::placeholder {
+  color: #999;
+}
+
 /* Logout Section */
 .logoutSection {
   padding-top: 20px;

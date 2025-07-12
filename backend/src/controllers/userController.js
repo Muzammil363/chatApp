@@ -6,12 +6,12 @@ import { Request } from '../models/Requests.js';
 export const profile = async (req, res) => {
     console.log("req.user: ", req.user); // email
 
-    let user=await User.findOne({email:req.user}).select('email fullName profilePic');
-    
-    if(user) {
-        return res.status(200).json({ profile:user, message:"Fetched Profile" });
+    let user = await User.findOne({ email: req.user }).select('email fullName profilePic');
+
+    if (user) {
+        return res.status(200).json({ profile: user, message: "Fetched Profile" });
     }
-    return res.status(404).json({message:"User not found"});
+    return res.status(404).json({ message: "User not found" });
 }
 
 export const updateProfile = async (req, res) => {
@@ -22,7 +22,7 @@ export const updateProfile = async (req, res) => {
             console.log("req.user: ", req.user);
             let updatedUser = await User.findOneAndUpdate({ email: req.user }, { fullName: fullName }, { new: true });
             console.log("updated user");
-            return res.status(200).json({message:"Profile updated successfully"});
+            return res.status(200).json({ message: "Profile updated successfully" });
         } catch (err) {
             return res.status(500).json({ message: "error in updating fullName" })
         }
@@ -48,17 +48,18 @@ export const updateProfile = async (req, res) => {
 export const getContacts = async (req, res) => {
     try {
         const loggedUser = await User.findOne({ email: req.user });
-        console.log("fetching contacts for: ",loggedUser.email);
+        if(!loggedUser) return res.status(404).json({message:"user not found"});
+        console.log("fetching contacts for: ", loggedUser.email);
         const contacts = await Contacts.find({ user: loggedUser._id }).populate({
             path: 'contacts',
             select: 'email fullName profilePic'
         })
 
-        if (!contacts) {
+        if (!contacts || contacts.length<=0) {
             return res.status(200).json({ contacts: [] });
         }
 
-        return res.status(200).json({ contacts: contacts });
+        return res.status(200).json({ contacts: contacts[0].contacts });
     } catch (error) {
         console.log(error);
         return res.status(500).json({ message: "sever side error while fetching contacts" });
@@ -70,7 +71,7 @@ export const fetchFor = async (req, res) => {
     try {
         const findBy = req.params.id;
         result = await User.find({ $or: [{ fullName: findBy }, { email: findBy }] }).select('email fullName profilePic');
-
+        console.log("result: ",result);
         return res.status(200).json({ result: result });
 
     } catch (error) {
@@ -82,13 +83,16 @@ export const fetchFor = async (req, res) => {
 export const fetchRequests = async (req, res) => {
     const loggedIn = req.user;
     try {
-        console.log("fetching requests for :",loggedIn);
-        let requests = await Request.find({ user: loggedIn }).populate({
+        console.log("fetching requests for :", loggedIn);
+        let req = await Request.find({ user: loggedIn }).populate({
             path: 'requests',
             select: 'email fullName profilePic'
         });
-
-        return res.status(200).json({ requests: requests });
+        if(req.length==0) {
+            return res.status(200).json({requests:[]});
+        }
+        console.log("in fetch requests: ",req[0].requests);
+        return res.status(200).json({ requests: req[0].requests });
     } catch (error) {
         console.log(error);
         return res.status(500).json({ message: "Sever side error while finding request" })
@@ -104,12 +108,13 @@ export const sendRequest = async (req, res) => {
         // check this user
         if (user) {
             // in request receiver's record add this current user's request 
-            console.log("Sending request from "+currentUser.email+" to "+sendTo);
+            console.log("Sending request from " + currentUser.email + " to " + sendTo);
             let updated = await Request.updateOne(
                 { user: sendTo },
-                { $push: { requests: currentUser._id }}
+                { $push: { requests: currentUser._id } },
+                { upsert: true }
             )
-            return res.status(200).json({ message: "Request sent successfully" ,updated:updated});
+            return res.status(200).json({ message: "Request sent successfully", updated: updated });
         }
         else {
             return res.status(404).json({ message: "User not found!" });
@@ -142,10 +147,29 @@ export const acceptRequest = async (req, res) => {
             { $push: { contacts: loggedUser._id } }
         )
 
-        return res.status(200).json({message:"Accepted request successfully"});
+        return res.status(200).json({ message: "Accepted request successfully" });
     } catch (error) {
         console.log(error);
         return res.status(500).json({ message: "Server side error while accepting request" })
+    }
+
+}
+
+export const deleteRequest = async (req, res) => {
+    const loggedIn = req.user;
+    const reject = req.params.id;
+
+    try {
+        let rejectUser = await User.findOne({ email: reject });
+        let updated = await Request.updateOne(
+            { user: loggedIn },
+            { $pull: { requests: rejectUser._id } }
+        )
+        console.log("updated: ",updated);
+        return res.status(200).json({message:"Declined user request"});
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({message:"Server side error while declining request"});
     }
 
 }

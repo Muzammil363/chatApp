@@ -5,14 +5,18 @@ import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { authActions } from '../store/index.js';
 import { fetchProfile } from '../services/User.js';
+import { updateName } from '../services/User.js';
+import { useRef } from 'react';
 
 const Profile = () => {
   const navigate=useNavigate();
   const dispatch=useDispatch();
+  const fullName=useRef();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
-  const [isLoading,setIsloading]=useState(true);
+  const [isEditingName,setIsEditingName]=useState(false);
   const [user, setUser] = useState({});
+  const [reFetch,setReFetch]=useState(false);
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
@@ -27,7 +31,7 @@ const Profile = () => {
       setUser(data.profile);
     }
     loadData();
-  },[]);
+  },[reFetch]);
 
   const handlePasswordChange = (e) => {
     setPasswordData({
@@ -72,6 +76,22 @@ const Profile = () => {
     setShowPasswordModal(false);
     setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
   };
+
+  const handleSave=async ()=>{
+    let newName=fullName.current.value;
+    setIsEditingName(false);
+    if(newName.trim().length<2) {
+      toast.error("User name should be atleast 3 characters long");
+      return ;
+    }
+    let res=await updateName(newName);
+    if(res) {
+      toast.success("Updated username to ",newName);
+      setReFetch(true);
+      return ;
+    }
+    toast.error("Something went wrong");
+  }
 
   return (
     <div className={styles.profileContainer}>
@@ -118,14 +138,35 @@ const Profile = () => {
                   <span className={styles.actionArrow}>→</span>
                 </button>
 
-                <button className={styles.actionBtn}>
+                <button className={styles.actionBtn} onClick={()=>setIsEditingName(true)}>
                   <span className={styles.actionIcon}>✏️</span>
                   <div className={styles.actionText}>
-                    <h4>Edit Profile</h4>
-                    <p>Update your personal information</p>
+                    <h4>Edit UserName</h4>
+                    <p>Update what other's call you</p>
                   </div>
                   <span className={styles.actionArrow}>→</span>
                 </button>
+                {isEditingName && 
+                <div className={styles.actionBtn}>
+                    <input 
+                      type="text" 
+                      placeholder='Enter new UserName'
+                      className={styles.searchInput}
+                      ref={fullName}
+                    />
+                    <div style={{display:'flex', gap:'10px'}}>
+                      <button 
+                        className={styles.acceptBtn}
+                        onClick={handleSave}
+                      >Save
+                      </button>
+                      <button 
+                        className={styles.secondaryBtn}
+                        onClick={()=>{setIsEditingName(false)}}
+                      >Cancel
+                      </button>
+                    </div>
+                </div>}
 
                 <button className={styles.actionBtn}>
                   <span className={styles.actionIcon}>🔔</span>

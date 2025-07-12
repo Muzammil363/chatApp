@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styles from '../styles/Home.module.css';
-
+import { getContacts } from '../services/User.js';
+import toast from 'react-hot-toast';
 
 const Home = () => {
   const [selectedContact, setSelectedContact] = useState(null);
@@ -11,9 +12,10 @@ const Home = () => {
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState({});
+  const [contacts,setContacts]=useState([]);
 
   // Mock contacts data
-  const contacts = [
+  const dcontacts = [
     {
       id: 1,
       name: 'Sarah Johnson',
@@ -118,6 +120,18 @@ const Home = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  useEffect(()=>{
+    async function loadContacts() {
+      let res=await getContacts();
+      if(res) {
+        setContacts(res);
+      }
+      else {
+        toast.error("Error while fetching contacts");
+      }
+    }
+    loadContacts();
+  },[])
   useEffect(() => {
     if (selectedContact) {
       // Simulate typing indicator
@@ -186,17 +200,19 @@ const Home = () => {
           <div className={styles.contactsList}>
             {contacts.map(contact => (
               <div 
-                key={contact.id}
-                className={`${styles.contactItem} ${selectedContact?.id === contact.id ? styles.active : ''}`}
+                key={contact._id}
+                className={`${styles.contactItem} ${selectedContact && selectedContact._id === contact._id ? styles.active : ''}`}
                 onClick={() => handleContactSelect(contact)}
               >
                 <div className={styles.contactAvatar}>
-                  <span>{contact.avatar}</span>
+                  <span>{contact.profilePic}</span>
+                  {/* to be handled with user profile image  */}
                   {contact.online && <div className={styles.onlineIndicator}></div>}
                 </div>
                 <div className={styles.contactInfo}>
-                  <div className={styles.contactName}>{contact.name}</div>
+                  <div className={styles.contactName}>{contact.fullName}</div>
                   <div className={styles.lastMessage}>{contact.lastMessage}</div>
+                  {/* this will be handled  */}
                 </div>
                 <div className={styles.contactMeta}>
                   <div className={styles.messageTime}>{contact.time}</div>

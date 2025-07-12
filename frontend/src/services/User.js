@@ -10,12 +10,26 @@ export const fetchProfile=async ()=>{
     return data;
 }
 
-export const updatePassword=async ()=>{
+export const updatePassword=async (oldPassword,newPassword)=>{
 
 }
 
-export const updateName=async ()=>{
-
+export const updateName=async (newName)=>{
+    let res=await fetch('http://localhost:3000/user/updateProfile',{
+        method:'PATCH',
+        credentials:'include',
+        headers:{
+            "Content-type":"application/json"
+        },
+        body:JSON.stringify({
+            fullName:newName
+        })
+    });
+    let data=await res.json();
+    if(res.status==200) {
+        return true;
+    }
+    return false;
 }
 
 export const updateProfile=async ()=>{
@@ -23,7 +37,17 @@ export const updateProfile=async ()=>{
 }
 
 export const getContacts=async ()=>{
-
+    let res=await fetch('http://localhost:3000/user/contacts',{
+        method:'GET',
+        credentials:'include',
+        headers:{
+            "Content-type":"application/json"
+        }
+    });
+    let data=await res.json();
+    if(res.status==200) {
+        return data.contacts;
+    }
 }
 
 export const getToken=()=>{
