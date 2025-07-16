@@ -1,4 +1,4 @@
-import React, { useState,useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from '../styles/Profile.module.css';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -9,29 +9,29 @@ import { updateName } from '../services/User.js';
 import { useRef } from 'react';
 
 const Profile = () => {
-  const navigate=useNavigate();
-  const dispatch=useDispatch();
-  const fullName=useRef();
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const fullName = useRef();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
-  const [isEditingName,setIsEditingName]=useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
   const [user, setUser] = useState({});
-  const [reFetch,setReFetch]=useState(false);
+  const [reFetch, setReFetch] = useState(false);
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
-  
+
   const profilePhotos = ['👤', '👨‍💼', '👩‍💼', '👨‍💻', '👩‍💻', '👨‍🎓', '👩‍🎓', '👨‍⚕️', '👩‍⚕️', '👨‍🎨', '👩‍🎨', '👨‍🔬', '👩‍🔬', '👨‍🏫', '👩‍🏫', '🧑‍💼'];
 
-  useEffect(()=>{
+  useEffect(() => {
     async function loadData() {
-      let data=await fetchProfile();
+      let data = await fetchProfile();
       setUser(data.profile);
     }
     loadData();
-  },[reFetch]);
+  }, [reFetch]);
 
   const handlePasswordChange = (e) => {
     setPasswordData({
@@ -65,11 +65,21 @@ const Profile = () => {
     setShowPhotoModal(false);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("accessToken");
-    dispatch(authActions.logout());
-    toast.success("Logged out successfully");
-    navigate("/");
+  const handleLogout = async () => {
+    let res = await fetch('http://localhost:3000/api/auth/logout', {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        "Content-type": "application/json"
+      }
+    });
+    if (res.status == 200) {
+      localStorage.removeItem("accessToken");
+      dispatch(authActions.logout());
+      toast.success("Logged out successfully");
+      navigate("/");
+    }
+
   };
 
   const cancelPasswordChange = () => {
@@ -77,18 +87,18 @@ const Profile = () => {
     setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
   };
 
-  const handleSave=async ()=>{
-    let newName=fullName.current.value;
+  const handleSave = async () => {
+    let newName = fullName.current.value;
     setIsEditingName(false);
-    if(newName.trim().length<2) {
+    if (newName.trim().length < 2) {
       toast.error("User name should be atleast 3 characters long");
-      return ;
+      return;
     }
-    let res=await updateName(newName);
-    if(res) {
-      toast.success("Updated username to ",newName);
+    let res = await updateName(newName);
+    if (res) {
+      toast.success("Updated username to ", newName);
       setReFetch(true);
-      return ;
+      return;
     }
     toast.error("Something went wrong");
   }
@@ -104,7 +114,7 @@ const Profile = () => {
               <div className={styles.profilePhoto}>
                 <span>{user.profilePhoto}</span>
               </div>
-              <button 
+              <button
                 className={styles.changePhotoBtn}
                 onClick={() => setShowPhotoModal(true)}
               >
@@ -126,7 +136,7 @@ const Profile = () => {
             <div className={styles.actionSection}>
               <h3>Account Settings</h3>
               <div className={styles.actionButtons}>
-                <button 
+                <button
                   className={styles.actionBtn}
                   onClick={() => setShowPasswordModal(true)}
                 >
@@ -138,7 +148,7 @@ const Profile = () => {
                   <span className={styles.actionArrow}>→</span>
                 </button>
 
-                <button className={styles.actionBtn} onClick={()=>setIsEditingName(true)}>
+                <button className={styles.actionBtn} onClick={() => setIsEditingName(true)}>
                   <span className={styles.actionIcon}>✏️</span>
                   <div className={styles.actionText}>
                     <h4>Edit UserName</h4>
@@ -146,27 +156,27 @@ const Profile = () => {
                   </div>
                   <span className={styles.actionArrow}>→</span>
                 </button>
-                {isEditingName && 
-                <div className={styles.actionBtn}>
-                    <input 
-                      type="text" 
+                {isEditingName &&
+                  <div className={styles.actionBtn}>
+                    <input
+                      type="text"
                       placeholder='Enter new UserName'
                       className={styles.searchInput}
                       ref={fullName}
                     />
-                    <div style={{display:'flex', gap:'10px'}}>
-                      <button 
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button
                         className={styles.acceptBtn}
                         onClick={handleSave}
                       >Save
                       </button>
-                      <button 
+                      <button
                         className={styles.secondaryBtn}
-                        onClick={()=>{setIsEditingName(false)}}
+                        onClick={() => { setIsEditingName(false) }}
                       >Cancel
                       </button>
                     </div>
-                </div>}
+                  </div>}
 
                 <button className={styles.actionBtn}>
                   <span className={styles.actionIcon}>🔔</span>
@@ -212,7 +222,7 @@ const Profile = () => {
             </div>
 
             <div className={styles.logoutSection}>
-              <button 
+              <button
                 className={styles.logoutBtn}
                 onClick={handleLogout}
               >
@@ -230,14 +240,14 @@ const Profile = () => {
           <div className={styles.modal}>
             <div className={styles.modalHeader}>
               <h3>Change Password</h3>
-              <button 
+              <button
                 className={styles.closeBtn}
                 onClick={cancelPasswordChange}
               >
                 ✕
               </button>
             </div>
-            
+
             <form className={styles.modalForm} onSubmit={handlePasswordSubmit}>
               <div className={styles.inputGroup}>
                 <label htmlFor="currentPassword">Current Password</label>
@@ -282,8 +292,8 @@ const Profile = () => {
               </div>
 
               <div className={styles.modalActions}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className={styles.cancelBtn}
                   onClick={cancelPasswordChange}
                 >
@@ -304,14 +314,14 @@ const Profile = () => {
           <div className={styles.modal}>
             <div className={styles.modalHeader}>
               <h3>Choose Profile Photo</h3>
-              <button 
+              <button
                 className={styles.closeBtn}
                 onClick={() => setShowPhotoModal(false)}
               >
                 ✕
               </button>
             </div>
-            
+
             <div className={styles.photoGrid}>
               {profilePhotos.map((photo, index) => (
                 <button

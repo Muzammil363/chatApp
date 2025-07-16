@@ -4,7 +4,7 @@ import { Contacts } from '../models/Contacts.js'
 import { Request } from '../models/Requests.js';
 
 export const profile = async (req, res) => {
-    console.log("req.user: ", req.user); // email
+    console.log("req.user in profile: ", req.user); // email
 
     let user = await User.findOne({ email: req.user }).select('email fullName profilePic');
 
@@ -48,14 +48,14 @@ export const updateProfile = async (req, res) => {
 export const getContacts = async (req, res) => {
     try {
         const loggedUser = await User.findOne({ email: req.user });
-        if(!loggedUser) return res.status(404).json({message:"user not found"});
+        if (!loggedUser) return res.status(404).json({ message: "user not found" });
         console.log("fetching contacts for: ", loggedUser.email);
         const contacts = await Contacts.find({ user: loggedUser._id }).populate({
             path: 'contacts',
             select: 'email fullName profilePic'
         })
 
-        if (!contacts || contacts.length<=0) {
+        if (!contacts || contacts.length <= 0) {
             return res.status(200).json({ contacts: [] });
         }
 
@@ -67,32 +67,47 @@ export const getContacts = async (req, res) => {
 }
 
 export const fetchFor = async (req, res) => {
-    let result = [];
+    let loggedIn = req.user;
     try {
         const findBy = req.params.id;
-        result = await User.find({ $or: [{ fullName: findBy }, { email: findBy }] }).select('email fullName profilePic');
-        console.log("result: ",result);
+        const users = await User.find({
+            $or: [
+                { fullName: new RegExp(`^${findBy}$`, 'i') },
+                { email: new RegExp(`^${findBy}$`, 'i') }
+            ]
+        }).select('email fullName profilePic');
+
+        const result = users.filter(u => u.email !== loggedIn);
         return res.status(200).json({ result: result });
 
     } catch (error) {
         console.log(error);
-        return res.status(500).json({ message: "Server side error while fetching for" })
+        return res.status(500).json({ message: "Server side error while fetching for" + req.params.id })
     }
 };
 
 export const fetchRequests = async (req, res) => {
     const loggedIn = req.user;
     try {
-        console.log("fetching requests for :", loggedIn);
-        let req = await Request.find({ user: loggedIn }).populate({
-            path: 'requests',
-            select: 'email fullName profilePic'
+        const reqs = await Request.find({ user: loggedIn });
+        const sentByEmails = reqs.map(r => r.sentBy);
+        // Fetch all sender profiles in one query
+        const users = await User.find({ email: { $in: sentByEmails } })
+            .select('email fullName profilePic');
+
+        //Fetch all sent requests 
+        const sentReq = await Request.find({ sentBy: loggedIn });
+        const sentToEmail=sentReq.map(r=>r.user);
+
+        const sentTousers=await User.find({email:{$in:sentToEmail}})
+        .select('email fullName profilePic');
+
+        console.log(sentTousers);
+        return res.status(200).json({
+            requests: users,
+            sentReq: sentTousers,
+            message: "Fetched requests successfully"
         });
-        if(req.length==0) {
-            return res.status(200).json({requests:[]});
-        }
-        console.log("in fetch requests: ",req[0].requests);
-        return res.status(200).json({ requests: req[0].requests });
     } catch (error) {
         console.log(error);
         return res.status(500).json({ message: "Sever side error while finding request" })
@@ -103,23 +118,16 @@ export const sendRequest = async (req, res) => {
     const loggedIn = req.user;
     const sendTo = req.body.email
     try {
-        let currentUser = await User.findOne({ email: loggedIn })
         let user = await User.findOne({ email: sendTo }); // to user
         // check this user
         if (user) {
-            // in request receiver's record add this current user's request 
-            console.log("Sending request from " + currentUser.email + " to " + sendTo);
-            let updated = await Request.updateOne(
-                { user: sendTo },
-                { $push: { requests: currentUser._id } },
-                { upsert: true }
-            )
-            return res.status(200).json({ message: "Request sent successfully", updated: updated });
+            console.log("Sending request from " + loggedIn + " to " + sendTo);
+            await Request.insertOne({user:sendTo,sentBy:loggedIn});
+            return res.status(200).json({message:"Sent request successfully"});
         }
         else {
             return res.status(404).json({ message: "User not found!" });
         }
-
     } catch (error) {
         console.log(error);
         return res.status(500).json({ message: "Sever side error while sending request" })
@@ -165,11 +173,11 @@ export const deleteRequest = async (req, res) => {
             { user: loggedIn },
             { $pull: { requests: rejectUser._id } }
         )
-        console.log("updated: ",updated);
-        return res.status(200).json({message:"Declined user request"});
+        console.log("updated: ", updated);
+        return res.status(200).json({ message: "Declined user request" });
     } catch (error) {
         console.error(error);
-        return res.status(500).json({message:"Server side error while declining request"});
+        return res.status(500).json({ message: "Server side error while declining request" });
     }
 
 }

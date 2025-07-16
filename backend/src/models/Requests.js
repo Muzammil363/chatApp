@@ -5,10 +5,12 @@ const RequestSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    requests: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-    }]
+    sentBy: {
+        type:String,
+        required:true
+    }
 });
 
+RequestSchema.index({user:1});
+RequestSchema.index({sentBy:1});
 export const Request=mongoose.model("Request",RequestSchema);

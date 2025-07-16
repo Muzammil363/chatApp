@@ -2,13 +2,22 @@ import mongoose from "mongoose";
 
 const ContactSchema = new mongoose.Schema({
     user: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        type: String,
+        required: true,
+        match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please fill a valid email address'],
     },
-    contacts: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-    }]
+    contact: {
+        type: String,
+        required: true,
+        match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please fill a valid email address'],
+    },
+    chatId:{
+        type:String,
+        required:true,
+        unique:true
+    }
 });
 
+ContactSchema.index({user:1});
+ContactSchema.index({user:1 , contact:1});
 export const Contacts=mongoose.model("Contact",ContactSchema);

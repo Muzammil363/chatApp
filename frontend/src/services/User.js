@@ -11,7 +11,7 @@ export const fetchProfile=async ()=>{
 }
 
 export const updatePassword=async (oldPassword,newPassword)=>{
-
+    // work on this at last
 }
 
 export const updateName=async (newName)=>{

@@ -28,8 +28,8 @@ export const signup = async (req, res) => {
         await userInitialization(email, fullName, password);
         const accessToken = generateAccessToken(email);
         const refreshToken = generateRefreshToken(email);
-        await Refresh.insertOne({ refreshToken: refreshToken, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) });
-        
+        // await Refresh.insertOne({ refreshToken: refreshToken, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) });
+
         res.cookie("refreshToken", refreshToken, {
             httpOnly: true,
             maxAge: 7 * 24 * 60 * 60 * 1000
@@ -48,7 +48,7 @@ export const login = async (req, res) => {
     try {
         const { email, password } = req.body;
         let fetchedUser = await User.findOne({ email: email });
-        console.log("fetchedUser : ", fetchedUser);
+
         if (fetchedUser != null) {
             // validate password and generate tokens to send
             let result = await bcrypt.compare(password, fetchedUser.password);
@@ -57,7 +57,7 @@ export const login = async (req, res) => {
                 const accessToken = jwt.sign({ email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: process.env.ACCESS_TOKEN_EXP });
                 const refreshToken = jwt.sign({ email }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: process.env.REFRESH_TOKEN_EXP || "7d" });
 
-                Refresh.insertOne({ refreshToken: refreshToken, expiresAt: Date(Date.now() + 7 * 24 * 60 * 60) })
+                // Refresh.insertOne({ refreshToken: refreshToken, expiresAt: Date(Date.now() + 7 * 24 * 60 * 60) })
 
                 res.cookie("refreshToken", refreshToken, {
                     httpOnly: true
@@ -79,17 +79,32 @@ export const login = async (req, res) => {
 }
 
 export const logout = async (req, res) => {
+    console.log(req.cookies);
     const token = req.cookies.refreshToken;
     try {
         res.clearCookie("refreshToken", {
             httpOnly: true,
         });
         if (token) {
-            req.user = null;
-            let result = await Refresh.deleteOne({ refreshToken: token });
-            return res.status(200).json({ message: "logged out" });
+            jwt.verify(token, process.env.REFRESH_TOKEN_SECRET, async (err, decoded) => {
+                if (err) {
+                    return res.status(401).json({ message: 'Unauthorized' });
+                }
+                console.log("decoded email: ",decoded.email);
+                const user = await User.findOneAndUpdate(
+                    { email: decoded.email },
+                    { lastSeen: Date.now() },
+                    { new: true }
+                )
+                console.log(user);
+                req.user = null;
+                // let result = await Refresh.deleteOne({ refreshToken: token });
+                return res.status(200).json({ message: "logged out", user:user});
+            }
+            )
         }
         else {
+            console.log("in else");
             return res.status(200).json({ message: "logged out" });
         }
     } catch (error) {

@@ -17,8 +17,8 @@ const Home = () => {
   // Mock contacts data
   const dcontacts = [
     {
-      id: 1,
-      name: 'Sarah Johnson',
+      _id: 1,
+      fullName: 'Sarah Johnson',
       avatar: '👩‍💼',
       lastMessage: 'Hey! How are you doing?',
       time: '2:30 PM',
@@ -26,8 +26,8 @@ const Home = () => {
       online: true
     },
     {
-      id: 2,
-      name: 'Mike Chen',
+      _id: 2,
+      fullName: 'Mike Chen',
       avatar: '👨‍💻',
       lastMessage: 'The project looks great!',
       time: '1:45 PM',
@@ -35,8 +35,8 @@ const Home = () => {
       online: true
     },
     {
-      id: 3,
-      name: 'Emily Rodriguez',
+      _id: 3,
+      fullName: 'Emily Rodriguez',
       avatar: '👩‍🎓',
       lastMessage: 'Thanks for your help',
       time: '12:20 PM',
@@ -44,8 +44,8 @@ const Home = () => {
       online: false
     },
     {
-      id: 4,
-      name: 'David Wilson',
+      _id: 4,
+      fullName: 'David Wilson',
       avatar: '👨‍🎨',
       lastMessage: 'Let\'s catch up soon',
       time: '11:30 AM',
@@ -53,8 +53,8 @@ const Home = () => {
       online: false
     },
     {
-      id: 5,
-      name: 'Lisa Park',
+      _id: 5,
+      fullName: 'Lisa Park',
       avatar: '👩‍⚕️',
       lastMessage: 'Meeting at 3 PM?',
       time: '10:15 AM',

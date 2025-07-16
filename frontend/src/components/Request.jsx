@@ -13,135 +13,19 @@ const Request = () => {
     const [receivedRequests, setReceivedRequests] = useState([]);
     const [sentRequests, setSentRequests] = useState([]);
 
-    // Mock data for received requests
-    const mockReceivedRequests = [
-        {
-            id: 1,
-            name: 'Alex Thompson',
-            avatar: '👨‍💼',
-            mutualFriends: 5,
-            time: '2 hours ago',
-            bio: 'Software Engineer at TechCorp'
-        },
-        {
-            id: 2,
-            name: 'Maria Garcia',
-            avatar: '👩‍🎨',
-            mutualFriends: 12,
-            time: '5 hours ago',
-            bio: 'Digital Artist & Designer'
-        },
-        {
-            id: 3,
-            name: 'James Wilson',
-            avatar: '👨‍🔬',
-            mutualFriends: 3,
-            time: '1 day ago',
-            bio: 'Research Scientist'
-        },
-        {
-            id: 4,
-            name: 'Sophie Chen',
-            avatar: '👩‍💻',
-            mutualFriends: 8,
-            time: '2 days ago',
-            bio: 'Full Stack Developer'
-        }
-    ];
-
-    // Mock data for sent requests
-    const mockSentRequests = [
-        {
-            id: 1,
-            name: 'Robert Davis',
-            avatar: '👨‍🏫',
-            time: '1 hour ago',
-            status: 'pending',
-            bio: 'University Professor'
-        },
-        {
-            id: 2,
-            name: 'Emma Johnson',
-            avatar: '👩‍⚕️',
-            time: '3 hours ago',
-            status: 'pending',
-            bio: 'Medical Doctor'
-        },
-        {
-            id: 3,
-            name: 'Michael Brown',
-            avatar: '👨‍🎵',
-            time: '1 day ago',
-            status: 'pending',
-            bio: 'Music Producer'
-        }
-    ];
-
-    // Mock data for search results
-    const mockUsers = [
-        {
-            id: 1,
-            name: 'Jennifer Lee',
-            avatar: '👩‍💼',
-            mutualFriends: 7,
-            bio: 'Marketing Manager',
-            status: 'available'
-        },
-        {
-            id: 2,
-            name: 'Daniel Kim',
-            avatar: '👨‍💻',
-            mutualFriends: 4,
-            bio: 'Frontend Developer',
-            status: 'available'
-        },
-        {
-            id: 3,
-            name: 'Rachel Green',
-            avatar: '👩‍🎓',
-            mutualFriends: 15,
-            bio: 'Data Scientist',
-            status: 'available'
-        },
-        {
-            id: 4,
-            name: 'Tom Anderson',
-            avatar: '👨‍🎨',
-            mutualFriends: 2,
-            bio: 'Graphic Designer',
-            status: 'available'
-        },
-        {
-            id: 5,
-            name: 'Lisa Wang',
-            avatar: '👩‍🔬',
-            mutualFriends: 9,
-            bio: 'Biochemist',
-            status: 'available'
-        },
-        {
-            id: 6,
-            name: 'Chris Miller',
-            avatar: '👨‍⚖️',
-            mutualFriends: 6,
-            bio: 'Legal Advisor',
-            status: 'available'
-        }
-    ];
-
     useEffect(() => {
-        setReceivedRequests(mockReceivedRequests);
-        setSentRequests(mockSentRequests);
-
+        // This use effect is to fetch user requests
         async function loadRequests() {
             let data=await findRequests();
-            console.log("data: ",data.requests);
+            console.log("data: ",data);
             setReceivedRequests(data.requests); 
+            setSentRequests(data.sentReq);
         }
         loadRequests();
     }, [activeTab]);
 
     useEffect(() => {
+        // This use effect is for debounce implementation
         let timer=setTimeout(()=>{
             setDebouncedTerm(searchQuery);
         },500)
@@ -150,13 +34,14 @@ const Request = () => {
     }, [searchQuery])
 
     useEffect(()=>{
+        // This use effect is to search with debounced term 
         if(debouncedTerm.trim()=='') {
             setSearchResults([]);
             return ;
         }
 
         async function loadData() {
-            let data=await findUser(debouncedTerm);
+            let data=await findUser(debouncedTerm);  
             setSearchResults(data.result);
         }
         loadData();
@@ -164,7 +49,7 @@ const Request = () => {
 
     const handleShowSearch = () => {
         setShowSearch(true);
-        setSearchResults(mockUsers);
+        setSearchResults(searchResults);
     };
 
     const handleBackToRequests = () => {
@@ -295,10 +180,11 @@ const Request = () => {
                                                 <div key={request.email} className={styles.reqCard}>
                                                     <div className={styles.requestAvatar}>
                                                         <span>{request.avatar}</span>
+                                                        {/* to be handled with profilePic and img */}
                                                     </div>
                                                     <div className={styles.requestInfo}>
-                                                        <h4>{request.name}</h4>
-                                                        <p className={styles.requestBio}>{request.bio}</p>
+                                                        <h4>{request.fullName}</h4>
+                                                        <p className={styles.requestBio}>{request.email}</p>
                                                         <div className={styles.requestMeta}>
                                                             <span className={styles.requestStatus}>Pending</span>
                                                             <span className={styles.requestTime}>{request.time}</span>

@@ -12,13 +12,10 @@ export const userInitialization = async (email, fullName, password) => {
     const user = await User.create({
         email,
         fullName,
-        password: hashedPassword
+        password: hashedPassword,
+        status:"online"
     });
-
-    
-
-    await Contacts.insertOne({ user:user._id,contacts:[]});
-    await Request.insertOne({user:email,requests:[]});
-
+    console.log("saving user");
+    user.save();
 }
 

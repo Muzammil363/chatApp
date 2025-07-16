@@ -7,15 +7,12 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true,
         match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please fill a valid email address'],
-        unique: true
     },
-
     fullName: {
         type: String,
         required: true,
         default: 'newUser'
     },
-
     password: {
         type: String,
         required: true,
@@ -24,10 +21,18 @@ const userSchema = new mongoose.Schema({
     profilePic: {
         type: String,
         default: ""
+    },
+    lastSeen: {
+        type:Date
+    },
+    status: {
+        type:String,
+        default:"offline"
     }
 },
     { timestamps: true }
 )
 
+userSchema.index({email:1});
 export const User=mongoose.model("User",userSchema);
 

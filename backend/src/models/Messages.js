@@ -1,12 +1,11 @@
 import mongoose from "mongoose";
 
 const messageSchema=new mongoose.Schema({
-    senderEmail : {
+    chatId:{
         type:String,
-        match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please fill a valid email address'],
         required:true
     },
-    receiverEmail : {
+    sender : {
         type:String,
         match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please fill a valid email address'],
         required:true
@@ -16,10 +15,14 @@ const messageSchema=new mongoose.Schema({
     },
     image: {
         type:String
+    },
+    createdAt:{
+        type:Date,
+        default:Date.now
     }
-},
-{timestamps:true}
+}
 )
 
+messageSchema.index({chatId:1 ,createdAt:-1 });
 export const Messages=mongoose.model("Message",messageSchema);
 

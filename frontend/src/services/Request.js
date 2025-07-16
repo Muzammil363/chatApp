@@ -34,7 +34,7 @@ export const findRequests=async ()=>{
     let data=await res.json();
     if(res.status==500) {
         toast.error(data.message);
-        return [];
+        return {requests:[],sentReq:[]}; 
     }
     return data;
 }
