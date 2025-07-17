@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styles from '../styles/Request.module.css';
-import { findUser,findRequests, sendRequest, declineRequest ,acceptUser} from '../services/Request';
+import { findUser,findRequests, sendRequest, declineRequest ,acceptUser, cancelRequest} from '../services/Request';
 import toast from 'react-hot-toast';
 
 const Request = () => {
@@ -78,9 +78,16 @@ const Request = () => {
         else toast.error("Error while Declining request");
     };
 
-    const handleCancelRequest = (requestId) => {
-        setSentRequests(prev => prev.filter(req => req.id !== requestId));
-        console.log('Cancelled request:', requestId);
+    const handleCancelRequest = async (requestId) => {
+        let res=await cancelRequest(requestId);
+        if(res) {
+            setSentRequests(prev => prev.filter(req => req.email !== requestId));
+            console.log('Cancelled request:', requestId);
+            toast.success("Canceled Request successfully");
+            return ;
+        }
+        toast.error("Something went wrong");
+
     };
 
     const handleSendRequest = async (userId) => {

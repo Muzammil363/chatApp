@@ -2,6 +2,9 @@ import cloudinary from '../connections/cloudinary.js'
 import { User } from '../models/User.js';
 import { Contacts } from '../models/Contacts.js'
 import { Request } from '../models/Requests.js';
+import { generateChatId } from '../utils/chat.js'
+import { Chat } from '../models/ChatData.js';
+import moment from "moment"
 
 export const profile = async (req, res) => {
     console.log("req.user in profile: ", req.user); // email
@@ -47,19 +50,49 @@ export const updateProfile = async (req, res) => {
 
 export const getContacts = async (req, res) => {
     try {
-        const loggedUser = await User.findOne({ email: req.user });
-        if (!loggedUser) return res.status(404).json({ message: "user not found" });
-        console.log("fetching contacts for: ", loggedUser.email);
-        const contacts = await Contacts.find({ user: loggedUser._id }).populate({
-            path: 'contacts',
-            select: 'email fullName profilePic'
+        const loggedIn = req.user;
+        console.log("fetching contacts for: ", loggedIn);
+
+        const contactDocs = await Contacts.find({ user: loggedIn });
+        let contactEmails = contactDocs.map(contact => contact.contact);
+
+        const contacts = await User.find({ email: { $in: contactEmails } })
+            .select('email fullName profilePic status lastSeen');
+
+        let emailToChatId = {};
+        let chatIdList = [];
+        contactDocs.forEach(doc => {
+            emailToChatId[doc.contact] = doc.chatId;
+            chatIdList.push(doc.chatId);
         })
 
-        if (!contacts || contacts.length <= 0) {
-            return res.status(200).json({ contacts: [] });
-        }
+        let lastMessagesList = await Chat.find({ chatId: { $in: chatIdList } });
 
-        return res.status(200).json({ contacts: contacts[0].contacts });
+        let lastMsg = {};
+        lastMessagesList.forEach(msg => {
+            lastMsg[msg.chatId] = msg;
+        })
+        const data = contacts.map(contact => {
+            const chatId = emailToChatId[contact.email]
+            return ({
+                email: contact.email,
+                fullName: contact.fullName,
+                profilePic: contact.profilePic,
+                online:contact.status==="online"?true:false,
+                lastSeen:contact.status==="offline"?moment(contact.lastSeen).fromNow():null,
+                chatId: emailToChatId[contact.email],
+                lastMessage: lastMsg[chatId]
+            })
+        }
+        );
+
+        data.sort((a, b) => {
+            const tA = a.lastMessage ? new Date(a.lastMessage.createdAt).getTime() : 0;
+            const tB = b.lastMessage ? new Date(b.lastMessage.createdAt).getTime() : 0;
+            return tB - tA;
+        });
+
+        return res.status(200).json({ contacts: data, message: "Fetched contacts" });
     } catch (error) {
         console.log(error);
         return res.status(500).json({ message: "sever side error while fetching contacts" });
@@ -97,10 +130,10 @@ export const fetchRequests = async (req, res) => {
 
         //Fetch all sent requests 
         const sentReq = await Request.find({ sentBy: loggedIn });
-        const sentToEmail=sentReq.map(r=>r.user);
+        const sentToEmail = sentReq.map(r => r.user);
 
-        const sentTousers=await User.find({email:{$in:sentToEmail}})
-        .select('email fullName profilePic');
+        const sentTousers = await User.find({ email: { $in: sentToEmail } })
+            .select('email fullName profilePic');
 
         console.log(sentTousers);
         return res.status(200).json({
@@ -115,15 +148,15 @@ export const fetchRequests = async (req, res) => {
 }
 
 export const sendRequest = async (req, res) => {
-    const loggedIn = req.user;
-    const sendTo = req.body.email
+    const loggedIn = req.user;  // this user sends to 
+    const sendTo = req.body.email // this user
     try {
         let user = await User.findOne({ email: sendTo }); // to user
         // check this user
         if (user) {
             console.log("Sending request from " + loggedIn + " to " + sendTo);
-            await Request.insertOne({user:sendTo,sentBy:loggedIn});
-            return res.status(200).json({message:"Sent request successfully"});
+            await Request.insertOne({ user: sendTo, sentBy: loggedIn });
+            return res.status(200).json({ message: "Sent request successfully" });
         }
         else {
             return res.status(404).json({ message: "User not found!" });
@@ -137,47 +170,62 @@ export const sendRequest = async (req, res) => {
 export const acceptRequest = async (req, res) => {
     try {
         const loggedIn = req.user; // email
-        const acceptFor = req.params.id; // email
+        const acceptFor = req.params.id; // email , this user sent to loggedIn user
 
         // add acceptFor in contacts list of loggedIn user and 
         // add loggedIn in contacts list for acceptFor user
 
         let acceptForUser = await User.findOne({ email: acceptFor });
-        let loggedUser = await User.findOne({ email: loggedIn });
+        if (!acceptForUser) {
+            return res.status(404).json({ message: "User not found with given email" });
+        }
 
-        let action1 = await Contacts.updateOne(
-            { user: loggedUser._id },
-            { $push: { contacts: acceptForUser._id } }
-        );
+        const exists = await Contacts.findOne({ user: loggedIn, contact: acceptFor });
+        if (exists) {
+            return res.status(409).json({ message: "Contact already exists" });
+        }
 
-        let action2 = await Contacts.updateOne(
-            { user: acceptForUser._id },
-            { $push: { contacts: loggedUser._id } }
-        )
+        const chatId = generateChatId(loggedIn, acceptFor);
+        await Promise.all([
+            Contacts.create({ user: loggedIn, contact: acceptFor, chatId }),
+            Contacts.create({ user: acceptFor, contact: loggedIn, chatId }),
+        ]);
 
+        await Request.deleteOne({ user: loggedIn, sentBy: acceptFor });
         return res.status(200).json({ message: "Accepted request successfully" });
     } catch (error) {
         console.log(error);
         return res.status(500).json({ message: "Server side error while accepting request" })
     }
-
 }
 
 export const deleteRequest = async (req, res) => {
     const loggedIn = req.user;
-    const reject = req.params.id;
+    const reject = req.params.id; // email of request to be deleted
 
     try {
         let rejectUser = await User.findOne({ email: reject });
-        let updated = await Request.updateOne(
-            { user: loggedIn },
-            { $pull: { requests: rejectUser._id } }
-        )
-        console.log("updated: ", updated);
+        if (!rejectUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        await Request.deleteOne({ user: loggedIn, sentBy: reject });
         return res.status(200).json({ message: "Declined user request" });
     } catch (error) {
         console.error(error);
         return res.status(500).json({ message: "Server side error while declining request" });
     }
 
+}
+
+export const cancelRequest = async (req, res) => {
+    const loggedIn = req.user; // this user sent to --> sentBy=loggedIn
+    const cancelTo = req.params.id; // this user so --> user=cancelTo
+
+    try {
+        await Request.deleteOne({ user: cancelTo, sentBy: loggedIn });
+        return res.status(200).json({ message: "Canceled Request successfully" });
+    } catch (error) {
+        return res.status(500).json({ message: "Server side error while canceling request" });
+    }
 }

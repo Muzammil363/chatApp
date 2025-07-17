@@ -63,6 +63,11 @@ export const login = async (req, res) => {
                     httpOnly: true
                 });
                 req.user = email;
+                let update=await User.findOneAndUpdate(
+                    {email:req.user},
+                    {status:'online'},
+                    {new:true}
+                )
                 return res.status(200).json({ message: "logged in", accessToken: accessToken });
             }
             else {
@@ -79,8 +84,8 @@ export const login = async (req, res) => {
 }
 
 export const logout = async (req, res) => {
-    console.log(req.cookies);
     const token = req.cookies.refreshToken;
+    console.log("logout route");
     try {
         res.clearCookie("refreshToken", {
             httpOnly: true,
@@ -93,6 +98,7 @@ export const logout = async (req, res) => {
                 console.log("decoded email: ",decoded.email);
                 const user = await User.findOneAndUpdate(
                     { email: decoded.email },
+                    {status:"offline"},
                     { lastSeen: Date.now() },
                     { new: true }
                 )

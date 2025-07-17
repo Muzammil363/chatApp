@@ -2,7 +2,8 @@ import express, { urlencoded } from 'express'
 import { authMiddleware } from '../middleware/authMiddleware.js';
 import { profile,updateProfile,
     getContacts,fetchFor,
-    sendRequest, fetchRequests , acceptRequest,deleteRequest} from '../controllers/userController.js';
+    sendRequest, fetchRequests , acceptRequest,deleteRequest,
+    cancelRequest} from '../controllers/userController.js';
 
 
 const router=express.Router();
@@ -18,5 +19,6 @@ router.get('/fetchRequests',authMiddleware,fetchRequests);
 router.post('/sendRequest',authMiddleware,sendRequest);
 router.post('/acceptRequest/:id',authMiddleware,acceptRequest); 
 router.delete('/declineRequest/:id',authMiddleware,deleteRequest); 
+router.delete('/cancelRequest/:id',authMiddleware,cancelRequest);
 
 export default router

@@ -88,3 +88,17 @@ export const declineRequest=async (email)=> {
     return false;
     
 }
+
+export const cancelRequest=async (email)=>{
+    let res=await fetch(`http://localhost:3000/user/cancelRequest/${email}`,{
+        method:'DELETE',
+        credentials:'include',
+        headers:{
+            "Content-type":"application/json"
+        }
+    });
+    if(res.status==200) {
+        return true;
+    }
+    return false;
+}

@@ -48,6 +48,7 @@ export const getContacts=async ()=>{
     if(res.status==200) {
         return data.contacts;
     }
+    return null;
 }
 
 export const getToken=()=>{

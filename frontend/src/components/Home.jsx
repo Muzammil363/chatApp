@@ -132,8 +132,10 @@ const Home = () => {
     }
     loadContacts();
   },[])
+
   useEffect(() => {
     if (selectedContact) {
+      console.log("selected contact: ",selectedContact);
       // Simulate typing indicator
       const typingTimer = setTimeout(() => {
         setIsTyping(true);
@@ -179,7 +181,6 @@ const Home = () => {
     <div className={styles.homeContainer}>
       {/* Navigation Bar */}
       
-
       {/* Main Chat Interface */}
       <div className={styles.chatContainer}>
         {/* Contacts Sidebar */}
@@ -200,8 +201,8 @@ const Home = () => {
           <div className={styles.contactsList}>
             {contacts.map(contact => (
               <div 
-                key={contact._id}
-                className={`${styles.contactItem} ${selectedContact && selectedContact._id === contact._id ? styles.active : ''}`}
+                key={contact.chatId}
+                className={`${styles.contactItem} ${selectedContact && selectedContact.chatId === contact.chatId ? styles.active : ''}`}
                 onClick={() => handleContactSelect(contact)}
               >
                 <div className={styles.contactAvatar}>
@@ -241,12 +242,13 @@ const Home = () => {
                 )}
                 <div className={styles.contactAvatar}>
                   <span>{selectedContact.avatar}</span>
+                  {/* to be handled with img */}
                   {selectedContact.online && <div className={styles.onlineIndicator}></div>}
                 </div>
                 <div className={styles.contactDetails}>
-                  <h4>{selectedContact.name}</h4>
+                  <h4>{selectedContact.fullName}</h4>
                   <span className={styles.status}>
-                    {selectedContact.online ? 'Online' : 'Last seen recently'}
+                    {selectedContact.status==='online' ? 'Online' : selectedContact.lastSeen}
                   </span>
                 </div>
                 <div className={styles.conversationActions}>
