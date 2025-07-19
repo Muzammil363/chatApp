@@ -6,30 +6,7 @@ import { Link } from 'react-router-dom';
 function Navbar() {
     const [isMobile, setIsMobile] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
-    const [connected, setConnected] = useState(false); // move it here
-    const [message, setMessage] = useState('');
-
-  useEffect(() => {
-    const onConnect = () => {
-      console.log("Connected with socket id:", socket.id);
-      setConnected(true);
-    };
-
-    const onDisconnect = () => {
-      console.log("Disconnected from socket.");
-      setConnected(false);
-    };
-
-    socket.on("connect", onConnect);
-    socket.on("disconnect", onDisconnect);
-
-    // Cleanup
-    return () => {
-      socket.off("connect", onConnect);
-      socket.off("disconnect", onDisconnect);
-    };
-  }, []);
-
+    
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth <= 768);

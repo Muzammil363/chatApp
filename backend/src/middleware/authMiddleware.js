@@ -10,7 +10,6 @@ export const authMiddleware = async (req, res, next) => {
 
     try{
         let decoded=jwt.verify(token,process.env.REFRESH_TOKEN_SECRET);
-        console.log("decoded: ",decoded);
         req.user=decoded.email;
         next();
     }catch(err) {

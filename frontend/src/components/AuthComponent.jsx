@@ -3,7 +3,7 @@ import styles from '../styles/Auth.module.css';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import toast from 'react-hot-toast';
-import socket from '../socket.js';
+import connectSocket from '../socket.js';
 import { authActions } from '../store/index.js';
 
 const AuthComponent = () => {
@@ -44,6 +44,7 @@ const AuthComponent = () => {
                 // store cookie and token 
                  localStorage.removeItem("accessToken");
                 localStorage.setItem("accessToken", data.accessToken);
+                // connectSocket();
                 toast.success("Logged in Successfully");
                 dispatch(authActions.login());
                 navigate("/u/home");
@@ -74,6 +75,7 @@ const AuthComponent = () => {
                 toast.success(data.message);
                 localStorage.removeItem("accessToken");
                 localStorage.setItem("accessToken",data.accessToken);
+                // connectSocket();
                 dispatch(authActions.login());
                 navigate('/u/home');
             }

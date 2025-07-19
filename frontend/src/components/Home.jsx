@@ -2,89 +2,25 @@ import React, { useState, useEffect } from 'react';
 import styles from '../styles/Home.module.css';
 import { getContacts } from '../services/User.js';
 import toast from 'react-hot-toast';
+import { connectSocket } from '../socket.js';
+import { useSocketConnection } from '../hooks/useSocketConnection.js';
 
 const Home = () => {
   const [selectedContact, setSelectedContact] = useState(null);
   const [showConversation, setShowConversation] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [connected, setConnected] = useState(false);
+  const [connected,setConnected]=useState(false);
+  const [socket,setSocket]=useState({});
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState({});
-  const [contacts,setContacts]=useState([]);
+  const [contacts, setContacts] = useState([]);
 
-  // Mock contacts data
-  const dcontacts = [
-    {
-      _id: 1,
-      fullName: 'Sarah Johnson',
-      avatar: '👩‍💼',
-      lastMessage: 'Hey! How are you doing?',
-      time: '2:30 PM',
-      unread: 2,
-      online: true
-    },
-    {
-      _id: 2,
-      fullName: 'Mike Chen',
-      avatar: '👨‍💻',
-      lastMessage: 'The project looks great!',
-      time: '1:45 PM',
-      unread: 0,
-      online: true
-    },
-    {
-      _id: 3,
-      fullName: 'Emily Rodriguez',
-      avatar: '👩‍🎓',
-      lastMessage: 'Thanks for your help',
-      time: '12:20 PM',
-      unread: 1,
-      online: false
-    },
-    {
-      _id: 4,
-      fullName: 'David Wilson',
-      avatar: '👨‍🎨',
-      lastMessage: 'Let\'s catch up soon',
-      time: '11:30 AM',
-      unread: 0,
-      online: false
-    },
-    {
-      _id: 5,
-      fullName: 'Lisa Park',
-      avatar: '👩‍⚕️',
-      lastMessage: 'Meeting at 3 PM?',
-      time: '10:15 AM',
-      unread: 3,
-      online: true
-    }
-  ];
-
-  // Mock messages data
-  const mockMessages = {
-    1: [
-      { id: 1, text: 'Hey! How are you doing?', sender: 'other', time: '2:25 PM' },
-      { id: 2, text: 'I\'m doing great! Just finished a big project.', sender: 'me', time: '2:27 PM' },
-      { id: 3, text: 'That\'s awesome! What was it about?', sender: 'other', time: '2:28 PM' },
-      { id: 4, text: 'It was a new chat application with real-time messaging', sender: 'me', time: '2:30 PM' }
-    ],
-    2: [
-      { id: 1, text: 'The project looks great!', sender: 'other', time: '1:40 PM' },
-      { id: 2, text: 'Thank you! I put a lot of effort into it.', sender: 'me', time: '1:42 PM' },
-      { id: 3, text: 'It really shows. The UI is very clean.', sender: 'other', time: '1:45 PM' }
-    ],
-    3: [
-      { id: 1, text: 'Thanks for your help', sender: 'other', time: '12:15 PM' },
-      { id: 2, text: 'You\'re welcome! Happy to help anytime.', sender: 'me', time: '12:18 PM' },
-      { id: 3, text: 'I really appreciate it!', sender: 'other', time: '12:20 PM' }
-    ]
-  };
+  // socket connection
 
   // useEffect(() => {
-  //   setMessages(mockMessages);
+  //   let token = localStorage.getItem("accessToken");
+  //   let socket = connectSocket(token);
   //   if (socket.connected) {
   //     console.log("Already connected with socket id:", socket.id);
   //     setConnected(true);
@@ -110,20 +46,22 @@ const Home = () => {
   //   };
   // }, []);
 
+  useSocketConnection(setConnected,setSocket);
+
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth <= 768);
     };
-    
+
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  useEffect(()=>{
+  useEffect(() => {
     async function loadContacts() {
-      let res=await getContacts();
-      if(res) {
+      let res = await getContacts();
+      if (res) {
         setContacts(res);
       }
       else {
@@ -131,17 +69,16 @@ const Home = () => {
       }
     }
     loadContacts();
-  },[])
+  }, [])
 
   useEffect(() => {
     if (selectedContact) {
-      console.log("selected contact: ",selectedContact);
       // Simulate typing indicator
       const typingTimer = setTimeout(() => {
         setIsTyping(true);
         setTimeout(() => setIsTyping(false), 2000);
       }, 1000);
-      
+
       return () => clearTimeout(typingTimer);
     }
   }, [selectedContact]);
@@ -167,12 +104,12 @@ const Home = () => {
         sender: 'me',
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
-      
+
       setMessages(prev => ({
         ...prev,
         [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage]
       }));
-      
+
       setMessage('');
     }
   };
@@ -180,7 +117,7 @@ const Home = () => {
   return (
     <div className={styles.homeContainer}>
       {/* Navigation Bar */}
-      
+
       {/* Main Chat Interface */}
       <div className={styles.chatContainer}>
         {/* Contacts Sidebar */}
@@ -189,18 +126,18 @@ const Home = () => {
             <h3>Messages</h3>
             <button className={styles.newChatBtn}>+</button>
           </div>
-          
+
           <div className={styles.searchBar}>
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="Search conversations..."
               className={styles.searchInput}
             />
           </div>
-          
+
           <div className={styles.contactsList}>
             {contacts.map(contact => (
-              <div 
+              <div
                 key={contact.chatId}
                 className={`${styles.contactItem} ${selectedContact && selectedContact.chatId === contact.chatId ? styles.active : ''}`}
                 onClick={() => handleContactSelect(contact)}
@@ -233,7 +170,7 @@ const Home = () => {
               {/* Conversation Header */}
               <div className={styles.conversationHeader}>
                 {isMobile && (
-                  <button 
+                  <button
                     className={styles.backBtn}
                     onClick={handleBackToContacts}
                   >
@@ -248,7 +185,7 @@ const Home = () => {
                 <div className={styles.contactDetails}>
                   <h4>{selectedContact.fullName}</h4>
                   <span className={styles.status}>
-                    {selectedContact.status==='online' ? 'Online' : selectedContact.lastSeen}
+                    {selectedContact.status === 'online' ? 'Online' : selectedContact.lastSeen}
                   </span>
                 </div>
                 <div className={styles.conversationActions}>
@@ -261,7 +198,7 @@ const Home = () => {
               {/* Messages Area */}
               <div className={styles.messagesArea}>
                 {messages[selectedContact.id]?.map(msg => (
-                  <div 
+                  <div
                     key={msg.id}
                     className={`${styles.message} ${msg.sender === 'me' ? styles.myMessage : styles.otherMessage}`}
                   >
@@ -271,7 +208,7 @@ const Home = () => {
                     </div>
                   </div>
                 ))}
-                
+
                 {isTyping && (
                   <div className={styles.typingIndicator}>
                     <div className={styles.typingDots}>
@@ -287,7 +224,7 @@ const Home = () => {
               {/* Message Input */}
               <form className={styles.messageInput} onSubmit={handleSendMessage}>
                 <button type="button" className={styles.attachBtn}>📎</button>
-                <input 
+                <input
                   type="text"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}

@@ -51,7 +51,7 @@ export const updateProfile = async (req, res) => {
 export const getContacts = async (req, res) => {
     try {
         const loggedIn = req.user;
-        console.log("fetching contacts for: ", loggedIn);
+      
 
         const contactDocs = await Contacts.find({ user: loggedIn });
         let contactEmails = contactDocs.map(contact => contact.contact);

@@ -1,8 +1,11 @@
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:3000", {
-  transports: ["websocket"],
-  withCredentials: true,
-});
+export function connectSocket(token) {
+  return io("http://localhost:3000", {
+    auth: { token },
+    transports: ["websocket"],
+    withCredentials: true,
+  });
+}
 
-export default socket
+export default connectSocket;

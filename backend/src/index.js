@@ -11,6 +11,7 @@ import messageRouter from './routes/Message.js'
 import cors from "cors"
 import { Server } from "socket.io";
 import { socketActions } from "./connections/Socket.js";
+import jwt from "jsonwebtoken"
 configDotenv();
 
 
@@ -49,4 +50,21 @@ const io = new Server(server, {
   }
 });
 
-io.on("connection",socketActions)
+export const socketMap=new Map();
+io.use((socket, next) => {
+    const token = socket.handshake.auth.token;
+    if (!token) return next(new Error("No token provided"));
+    // console.log("token: ",token)
+    try {
+        const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET); 
+        socket.email = decoded.email; // attach email to socket
+        socketMap.set(socket.email,socket.id);
+        console.log(socketMap);
+        next();
+    } catch (err) {
+      console.log("in catch block err",err);
+        next(new Error("Invalid token"));
+    }
+});
+
+io.on("connection",socketActions);
