@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styles from '../styles/Home.module.css';
 import { getContacts } from '../services/User.js';
 import toast from 'react-hot-toast';
@@ -7,13 +7,14 @@ import { useSocketConnection } from '../hooks/useSocketConnection.js';
 
 const Home = () => {
   const [selectedContact, setSelectedContact] = useState(null);
+  const currentContact=useRef();
   const [showConversation, setShowConversation] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [connected,setConnected]=useState(false);
   const [socket,setSocket]=useState({});
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [messages, setMessages] = useState({});
+  const [messages, setMessages] = useState([]);
   const [contacts, setContacts] = useState([]);
 
   // socket connection
@@ -46,7 +47,25 @@ const Home = () => {
   //   };
   // }, []);
 
-  useSocketConnection(setConnected,setSocket);
+  const handleReceive=(data) =>{
+    console.log("data received: ",data);
+    const curContactVal=currentContact.current;
+    console.log("selected contact in rcv: ",curContactVal?curContactVal:null);
+    let from=data.fromMail;
+    if(curContactVal && from==curContactVal.email && data.message) {
+      let newMessage={
+        id:Date.now(),
+        text:data.message,
+        time:data.time
+      }
+      setMessages((prev)=>[...prev,newMessage])
+    }
+    else {
+      console.log("message belongs to : ",from);
+    }
+  }
+  
+  useSocketConnection(handleReceive,setSocket);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -72,6 +91,7 @@ const Home = () => {
   }, [])
 
   useEffect(() => {
+    console.log("selected contact in useEffect: ",selectedContact);
     if (selectedContact) {
       // Simulate typing indicator
       const typingTimer = setTimeout(() => {
@@ -81,10 +101,13 @@ const Home = () => {
 
       return () => clearTimeout(typingTimer);
     }
-  }, [selectedContact]);
+  }, [selectedContact]);  // retrive messages to be called here
 
   const handleContactSelect = (contact) => {
     setSelectedContact(contact);
+    setMessages([]);
+    console.log("handle contact select:",contact);
+    currentContact.current=contact;
     if (isMobile) {
       setShowConversation(true);
     }
@@ -92,9 +115,10 @@ const Home = () => {
 
   const handleBackToContacts = () => {
     setShowConversation(false);
-    setSelectedContact(null);
+    setSelectedContact(null); 
   };
 
+  
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (message.trim() && selectedContact) {
@@ -104,11 +128,8 @@ const Home = () => {
         sender: 'me',
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
-
-      setMessages(prev => ({
-        ...prev,
-        [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage]
-      }));
+      socket.emit("send",{message:message , time:newMessage.time,sendTo:selectedContact.email});
+      setMessages((prev)=>[...prev,newMessage]);
 
       setMessage('');
     }
@@ -197,7 +218,7 @@ const Home = () => {
 
               {/* Messages Area */}
               <div className={styles.messagesArea}>
-                {messages[selectedContact.id]?.map(msg => (
+                {messages.map(msg => (
                   <div
                     key={msg.id}
                     className={`${styles.message} ${msg.sender === 'me' ? styles.myMessage : styles.otherMessage}`}
@@ -216,7 +237,7 @@ const Home = () => {
                       <span></span>
                       <span></span>
                     </div>
-                    <span className={styles.typingText}>{selectedContact.name} is typing...</span>
+                    <span className={styles.typingText}>{selectedContact.fullName} is typing...</span>
                   </div>
                 )}
               </div>

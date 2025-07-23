@@ -112,7 +112,7 @@ const Profile = () => {
           <div className={styles.profileHeader}>
             <div className={styles.profilePhotoSection}>
               <div className={styles.profilePhoto}>
-                <span>{user.profilePhoto}</span>
+                <span>{user.profilePic}</span>
               </div>
               <button
                 className={styles.changePhotoBtn}

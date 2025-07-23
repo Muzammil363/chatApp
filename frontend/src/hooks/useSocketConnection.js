@@ -3,7 +3,7 @@ import toast from "react-hot-toast";
 import { connectSocket } from '../socket.js';
 // import socket from "../socket";// adjust the path if needed
 
-export const useSocketConnection = (setConnected,setSocket) => {
+export const useSocketConnection = (handleReceive,setSocket) => {
   // const [connected,setConnected]=useState(false);
     useEffect(() => {
       let token = localStorage.getItem("accessToken");
@@ -24,9 +24,14 @@ export const useSocketConnection = (setConnected,setSocket) => {
         setSocket(null);
         // setConnected(false);
       };
-  
+      
+      const onRecieve=(data)=>{
+        handleReceive(data);
+      }
+
       socket.on("connect", onConnect);
       socket.on("disconnect", onDisconnect);
+      socket.on("recieve",onRecieve)
   
       // Cleanup
       return () => {

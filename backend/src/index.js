@@ -42,7 +42,7 @@ const server=app.listen(3000,()=>{
     console.log("backend started on 3000");
 });
 
-const io = new Server(server, {
+export const io = new Server(server, {
   cors: {
     origin: "http://localhost:5173", 
     methods: ["GET", "POST"],
@@ -59,7 +59,7 @@ io.use((socket, next) => {
         const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET); 
         socket.email = decoded.email; // attach email to socket
         socketMap.set(socket.email,socket.id);
-        console.log(socketMap);
+        console.log("socketMap in index.js: ",socketMap);
         next();
     } catch (err) {
       console.log("in catch block err",err);
