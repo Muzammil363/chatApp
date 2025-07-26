@@ -28,13 +28,37 @@ const themeSlice=createSlice({
     }
 });
 
+const secretSlcie=createSlice({
+    name:'decryptionKey',
+    initialState:{sharedSecret:''},
+    reducers:{
+        setSharedSecret(state,action) {
+            state.sharedSecret=action.payload.sharedSecret;
+        }
+    }
+});
+
+const  privateKeySlice=createSlice({
+    name:'privateKey',
+    initialState:{key:null},
+    reducers:{
+        setPrivateKey(state,action) {
+            state.key=action.payload.privateKey
+        }
+    }
+});
+
 const store=configureStore({
     reducer:{
         auth:authSlice.reducer,
-        theme:themeSlice.reducer
+        theme:themeSlice.reducer,
+        secret:secretSlcie.reducer,
+        privateKey:privateKeySlice.reducer
     }
 })
 
 export const authActions=authSlice.actions;
 export const themeActions=themeSlice.actions;
+export const decryptKeyActions=secretSlcie.actions;
+export const privateKeyActions=privateKeySlice.actions;
 export default store

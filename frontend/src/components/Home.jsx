@@ -1,22 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSelector,useDispatch } from 'react-redux';
 import styles from '../styles/Home.module.css';
 import { getContacts } from '../services/User.js';
 import toast from 'react-hot-toast';
 import { connectSocket } from '../socket.js';
 import { useSocketConnection } from '../hooks/useSocketConnection.js';
+import { decryptKeyActions,privateKeyActions } from '../store/index.js';
+import { deriveSharedSecret ,encryptWithAES,decryptWithAES } from '../services/Encryption.js';
 
 const Home = () => {
   const [selectedContact, setSelectedContact] = useState(null);
-  const currentContact=useRef();
   const [showConversation, setShowConversation] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [connected,setConnected]=useState(false);
+  // const [connected,setConnected]=useState(false);
   const [socket,setSocket]=useState({});
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState([]);
   const [contacts, setContacts] = useState([]);
-
+  
+  const currentContact=useRef();
+  const sharedSecretRef=useRef();
+  const dispatch=useDispatch();
+  const myPrivateKey=useSelector(state=>state.privateKey.key);
   // socket connection
 
   // useEffect(() => {
@@ -52,10 +58,14 @@ const Home = () => {
     const curContactVal=currentContact.current;
     console.log("selected contact in rcv: ",curContactVal?curContactVal:null);
     let from=data.fromMail;
+
     if(curContactVal && from==curContactVal.email && data.message) {
+      // decrypt and add
+      const decryptedMessage=JSON.parse(decryptWithAES(data.message,sharedSecretRef.current));
+
       let newMessage={
         id:Date.now(),
-        text:data.message,
+        text:decryptedMessage.text,
         time:data.time
       }
       setMessages((prev)=>[...prev,newMessage])
@@ -91,20 +101,25 @@ const Home = () => {
   }, [])
 
   useEffect(() => {
-    console.log("selected contact in useEffect: ",selectedContact);
     if (selectedContact) {
       // Simulate typing indicator
       const typingTimer = setTimeout(() => {
         setIsTyping(true);
         setTimeout(() => setIsTyping(false), 2000);
       }, 1000);
+    
+      // updated shared secret 
+      const otherPublicKey=selectedContact.publicKey;
+      const sharedSecret=deriveSharedSecret(myPrivateKey,otherPublicKey);
+      sharedSecretRef.current=sharedSecret;
 
       return () => clearTimeout(typingTimer);
     }
-  }, [selectedContact]);  // retrive messages to be called here
+  }, [selectedContact]);  
 
   const handleContactSelect = (contact) => {
     setSelectedContact(contact);
+    //  retrive messages to be called here
     setMessages([]);
     console.log("handle contact select:",contact);
     currentContact.current=contact;
@@ -120,7 +135,9 @@ const Home = () => {
 
   
   const handleSendMessage = (e) => {
-    e.preventDefault();
+    e.preventDefault(); 
+    // encrypt messages here 
+    
     if (message.trim() && selectedContact) {
       const newMessage = {
         id: Date.now(),
@@ -128,9 +145,11 @@ const Home = () => {
         sender: 'me',
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
-      socket.emit("send",{message:message , time:newMessage.time,sendTo:selectedContact.email});
-      setMessages((prev)=>[...prev,newMessage]);
+      const encryptedMessage=encryptWithAES(JSON.stringify(newMessage),sharedSecretRef.current);
+      socket.emit("send",{message:encryptedMessage , time:newMessage.time,sendTo:selectedContact.email});
 
+      // no need to decrypt and add directly
+      setMessages((prev)=>[...prev,newMessage]);
       setMessage('');
     }
   };

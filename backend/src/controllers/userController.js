@@ -52,12 +52,11 @@ export const getContacts = async (req, res) => {
     try {
         const loggedIn = req.user;
       
-
         const contactDocs = await Contacts.find({ user: loggedIn });
         let contactEmails = contactDocs.map(contact => contact.contact);
 
         const contacts = await User.find({ email: { $in: contactEmails } })
-            .select('email fullName profilePic status lastSeen');
+            .select('email fullName profilePic status lastSeen publicKey');
 
         let emailToChatId = {};
         let chatIdList = [];
@@ -78,6 +77,7 @@ export const getContacts = async (req, res) => {
                 email: contact.email,
                 fullName: contact.fullName,
                 profilePic: contact.profilePic,
+                publicKey:contact.publicKey,
                 online:contact.status==="online"?true:false,
                 lastSeen:contact.status==="offline"?moment(contact.lastSeen).fromNow():null,
                 chatId: emailToChatId[contact.email],

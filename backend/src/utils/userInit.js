@@ -5,14 +5,14 @@ import { Refresh } from '../models/RefreshToken.js'
 import { Contacts } from "../models/Contacts.js"
 import { Request } from "../models/Requests.js"
 
-export const userInitialization = async (email, fullName, password) => {
+export const userInitialization = async (email, fullName, password,publicKey) => {
     
-
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({
         email,
         fullName,
         password: hashedPassword,
+        publicKey:publicKey,
         status:"online"
     });
     console.log("saving user");

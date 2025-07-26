@@ -5,16 +5,19 @@ import { useDispatch } from 'react-redux';
 import toast from 'react-hot-toast';
 import connectSocket from '../socket.js';
 import { authActions } from '../store/index.js';
+import { decryptKeyActions,privateKeyActions } from '../store/index.js';
+import { getECDHKeyPairFromPIN } from '../services/Encryption.js';
 
 const AuthComponent = () => {
     const navigate = useNavigate();
-    const dispatch=useDispatch();
+    const dispatch = useDispatch();
     const [isLogin, setIsLogin] = useState(true);
     const [formData, setFormData] = useState({
         email: '',
         password: '',
-        confirmPassword: '',
-        fullName: ''
+        fullName: '',
+        pin:'',
+        confirmPin:''
     });
 
     const handleInputChange = (e) => {
@@ -26,25 +29,32 @@ const AuthComponent = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if(!formData.pin || formData.pin.length<2) {
+            toast.error('Please provide a valid pin');
+            return ;
+        }
+        const keys=getECDHKeyPairFromPIN(formData.pin);
+        // send public key to server on sign up and store private key on login/ signup in store
         if (isLogin) {
             console.log('Login attempt:', { email: formData.email, password: formData.password });
             let res = await fetch('http://localhost:3000/api/auth/login', {
                 method: 'POST',
+                credentials:'include',
                 headers: {
                     "Content-Type": "application/json"
                 },
-                credentials: "include",
                 body: JSON.stringify({
                     email: formData.email,
-                    password: formData.password
+                    password: formData.password,
                 })
             });
             let data = await res.json();
             if (res.status == 200) {
-                // store cookie and token 
-                 localStorage.removeItem("accessToken");
+                localStorage.removeItem("accessToken");
                 localStorage.setItem("accessToken", data.accessToken);
-                // connectSocket();
+
+                dispatch(privateKeyActions.setPrivateKey({privateKey:keys.privateKey}));
+
                 toast.success("Logged in Successfully");
                 dispatch(authActions.login());
                 navigate("/u/home");
@@ -55,33 +65,37 @@ const AuthComponent = () => {
 
         } else {
             console.log('Signup attempt:', formData);
-            if(formData.confirmPassword!=formData.password) {
-                toast.error("Passwords did not match");
-                return ;
+            if (formData.pin != formData.confirmPin) {
+                toast.error("Security PINS did not match");
+                return;
             }
-            let res=await fetch('http://localhost:3000/api/auth/signup',{
-                method:'POST',
-                headers:{
-                    "Content-type":"application/json"
+            let res = await fetch('http://localhost:3000/api/auth/signup', {
+                method: 'POST',
+                credentials:'include',
+                headers: {
+                    "Content-type": "application/json"
                 },
-                body:JSON.stringify({
-                    email:formData.email,
-                    fullName:formData.fullName,
-                    password:formData.password
+                body: JSON.stringify({
+                    email: formData.email,
+                    fullName: formData.fullName,
+                    password: formData.password,
+                    publicKey:keys.publicKeyHex
                 })
             })
-            let data=await res.json();
-            if(res.status==200) {
+            let data = await res.json();
+            if (res.status == 200) {
                 toast.success(data.message);
                 localStorage.removeItem("accessToken");
-                localStorage.setItem("accessToken",data.accessToken);
-                // connectSocket();
+                localStorage.setItem("accessToken", data.accessToken);
+
+                dispatch(privateKeyActions.setPrivateKey({privateKey:keys.privateKey}))
+
                 dispatch(authActions.login());
                 navigate('/u/home');
             }
             else {
                 toast.error(data.message);
-                return ;
+                return;
             }
         }
     };
@@ -91,8 +105,9 @@ const AuthComponent = () => {
         setFormData({
             email: '',
             password: '',
-            confirmPassword: '',
-            fullName: ''
+            fullName: '',
+            pin:'',
+            confirmPin:''
         });
     };
 
@@ -166,19 +181,35 @@ const AuthComponent = () => {
                         />
                     </div>
 
+                    <div className={styles.inputGroup}>
+                        <label htmlFor="pin" className={styles.inputLabel}>
+                            Your SECRET PIN ( User must remember this)
+                        </label>
+                        <input
+                            type="password"
+                            id="pin"
+                            name="pin"
+                            value={formData.pin}
+                            onChange={handleInputChange}
+                            className={styles.inputField}
+                            placeholder="Enter a SECRET PIN"
+                            required={true}
+                        />
+                    </div>
+
                     {!isLogin && (
                         <div className={styles.inputGroup}>
-                            <label htmlFor="confirmPassword" className={styles.inputLabel}>
-                                Confirm Password
+                            <label htmlFor="confirmPIN" className={styles.inputLabel}>
+                                Confirm SECRET PIN
                             </label>
                             <input
                                 type="password"
-                                id="confirmPassword"
-                                name="confirmPassword"
-                                value={formData.confirmPassword}
+                                id="confirmPin"
+                                name="confirmPin"
+                                value={formData.confirmPin}
                                 onChange={handleInputChange}
                                 className={styles.inputField}
-                                placeholder="Confirm your password"
+                                placeholder="Confirm your SECRET PIN"
                                 required={!isLogin}
                             />
                         </div>

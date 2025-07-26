@@ -28,6 +28,10 @@ const userSchema = new mongoose.Schema({
     status: {
         type:String,
         default:"offline"
+    },
+    publicKey : {
+        type:String,
+        required:true
     }
 },
     { timestamps: true }

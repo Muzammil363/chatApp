@@ -9,7 +9,7 @@ import { generateAccessToken, generateRefreshToken } from "../utils/jwt.js"
 
 export const signup = async (req, res) => {
     try {
-        const { email, fullName, password } = req.body;
+        const { email, fullName, password,publicKey } = req.body;
 
         let fetchedUser = await User.find({ email: email });
         if (fetchedUser.length > 0) {
@@ -24,10 +24,13 @@ export const signup = async (req, res) => {
         if (!password || password.length < 6) {
             return res.status(400).json({ message: "Password should be atleast 6 characters long" });
         }
+        if(!publicKey || publicKey.length<6) {
+            return res.status(400).json({message:"Bad credentials"});
+        }
 
-        await userInitialization(email, fullName, password);
+        await userInitialization(email, fullName, password , publicKey);
         const accessToken = generateAccessToken(email);
-        const refreshToken = generateRefreshToken(email);
+        const refreshToken = jwt.sign({ email }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: process.env.REFRESH_TOKEN_EXP || "7d" });
         // await Refresh.insertOne({ refreshToken: refreshToken, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) });
 
         res.cookie("refreshToken", refreshToken, {
