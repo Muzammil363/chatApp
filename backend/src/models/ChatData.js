@@ -1,4 +1,3 @@
-// chat.model.js
 import mongoose from 'mongoose';
 
 const chatSchema = new mongoose.Schema({
@@ -12,9 +11,9 @@ const chatSchema = new mongoose.Schema({
     required: true
   },
   lastMessage: {
-    text: String,
+    message: String,
     sender: String,
-    createdAt: Date
+    createdAt: String
   },
   unreadCounts: {
     type: Map,

@@ -65,7 +65,7 @@ export const getContacts = async (req, res) => {
 
         let lastMsg = {};
         lastMessagesList.forEach(msg => {
-            lastMsg[msg.chatId] = msg;
+            lastMsg[msg.chatId] = msg; // store message and unread count
         })
         const data = contacts.map(contact => {
             const chatId = emailToChatId[contact.email]

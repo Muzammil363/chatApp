@@ -10,11 +10,9 @@ const messageSchema=new mongoose.Schema({
         match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please fill a valid email address'],
         required:true
     },
-    text:{
-        type:String
-    },
-    image: {
-        type:String
+    message: {
+        type:String,
+        required:true
     },
     createdAt:{
         type:Date,

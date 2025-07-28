@@ -105,7 +105,6 @@ export const logout = async (req, res) => {
                     { lastSeen: Date.now() },
                     { new: true }
                 )
-                console.log(user);
                 req.user = null;
                 // let result = await Refresh.deleteOne({ refreshToken: token });
                 return res.status(200).json({ message: "logged out", user:user});
