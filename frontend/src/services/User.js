@@ -32,8 +32,21 @@ export const updateName=async (newName)=>{
     return false;
 }
 
-export const updateProfile=async ()=>{
-
+export const updateProfile=async (url)=>{
+    let res=await fetch("http://localhost:3000/user/updateProfile",{
+        method:'PATCH',
+        credentials:'include',
+        headers:{
+            "content-type":"application/json"
+        },
+        body:JSON.stringify({
+            profilePic:url
+        })
+    });
+    if(res.status==200) {
+        return true;
+    }
+    return false;
 }
 
 export const getContacts=async ()=>{

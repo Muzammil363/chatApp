@@ -629,3 +629,32 @@
 .messagesArea::-webkit-scrollbar-thumb:hover {
   background: rgba(26, 26, 46, 0.3);
 }
+
+.profilePhoto {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  color: white;
+  box-shadow: 0 10px 30px rgba(26, 26, 46, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.photo {
+  width: 120px;
+  height: 120px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  color: white;
+  box-shadow: 0 10px 30px rgba(26, 26, 46, 0.3);
+  position: relative;
+  overflow: hidden;
+}

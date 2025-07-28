@@ -7,6 +7,8 @@ import { authActions } from '../store/index.js';
 import { fetchProfile } from '../services/User.js';
 import { updateName } from '../services/User.js';
 import { useRef } from 'react';
+import { updateProfile } from '../services/User.js';
+import { uploadImageToCloudinary } from '../services/CloudinaryUpload.js';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -16,12 +18,32 @@ const Profile = () => {
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [user, setUser] = useState({});
-  const [reFetch, setReFetch] = useState(false);
+  const [reFetch, setReFetch] = useState(false);  // use this for any user data update
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
+
+  const fileInputRef = useRef(null);
+
+  const handleFileChange = async (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      console.log("Selected file:", file);
+      try {
+        let url = await uploadImageToCloudinary(file);
+        let res=await updateProfile(url);
+        if (url && res) {
+          toast.success("Updated profile photo");
+          setReFetch(true);
+        }
+      } catch (err) {
+          toast.error("Error while updating profile pic");
+      }
+      // You can upload the file or show preview here
+    }
+  };
 
   const profilePhotos = ['👤', '👨‍💼', '👩‍💼', '👨‍💻', '👩‍💻', '👨‍🎓', '👩‍🎓', '👨‍⚕️', '👩‍⚕️', '👨‍🎨', '👩‍🎨', '👨‍🔬', '👩‍🔬', '👨‍🏫', '👩‍🏫', '🧑‍💼'];
 
@@ -112,14 +134,26 @@ const Profile = () => {
           <div className={styles.profileHeader}>
             <div className={styles.profilePhotoSection}>
               <div className={styles.profilePhoto}>
-                <span>{user.profilePic}</span>
+                {/* <span>{user.profilePic}</span> */}
+                <img
+                  src={user.profilePic}
+                  className={styles.profilePhoto}
+                  alt="No profile photo"
+                />
               </div>
               <button
                 className={styles.changePhotoBtn}
-                onClick={() => setShowPhotoModal(true)}
+                onClick={() => fileInputRef.current.click()}
               >
                 📷
               </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                onChange={handleFileChange}
+                style={{ display: 'none' }}
+              />
             </div>
             <div className={styles.profileInfo}>
               <h1>{user.fullName}</h1>

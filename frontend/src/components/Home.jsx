@@ -1,28 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSelector,useDispatch } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import styles from '../styles/Home.module.css';
 import { getContacts } from '../services/User.js';
 import toast from 'react-hot-toast';
 import { connectSocket } from '../socket.js';
 import { useSocketConnection } from '../hooks/useSocketConnection.js';
-import { decryptKeyActions,privateKeyActions } from '../store/index.js';
-import { deriveSharedSecret ,encryptWithAES,decryptWithAES } from '../services/Encryption.js';
+import { decryptKeyActions, privateKeyActions } from '../store/index.js';
+import { deriveSharedSecret, encryptWithAES, decryptWithAES } from '../services/Encryption.js';
+import { uploadImageToCloudinary } from '../services/CloudinaryUpload.js';
 
 const Home = () => {
   const [selectedContact, setSelectedContact] = useState(null);
   const [showConversation, setShowConversation] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   // const [connected,setConnected]=useState(false);
-  const [socket,setSocket]=useState({});
+  const [socket, setSocket] = useState({});
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState([]);
   const [contacts, setContacts] = useState([]);
-  
-  const currentContact=useRef();
-  const sharedSecretRef=useRef();
-  const dispatch=useDispatch();
-  const myPrivateKey=useSelector(state=>state.privateKey.key);
+
+  const currentContact = useRef();
+  const sharedSecretRef = useRef();
+  const fileInputRef = useRef(null);
+  const dispatch = useDispatch();
+  const myPrivateKey = useSelector(state => state.privateKey.key);
   // socket connection
 
   // useEffect(() => {
@@ -53,29 +55,29 @@ const Home = () => {
   //   };
   // }, []);
 
-  const handleReceive=(data) =>{
-    console.log("data received: ",data);
-    const curContactVal=currentContact.current;
-    console.log("selected contact in rcv: ",curContactVal?curContactVal:null);
-    let from=data.fromMail;
+  const handleReceive = (data) => {
+    console.log("data received: ", data);
+    const curContactVal = currentContact.current;
+    let from = data.fromMail;
 
-    if(curContactVal && from==curContactVal.email && data.message) {
+    if (curContactVal && from == curContactVal.email && data.message) {
       // decrypt and add
-      const decryptedMessage=JSON.parse(decryptWithAES(data.message,sharedSecretRef.current));
+      const decryptedMessage = JSON.parse(decryptWithAES(data.message, sharedSecretRef.current));
 
-      let newMessage={
-        id:Date.now(),
-        text:decryptedMessage.text,
-        time:data.time
+      let newMessage = {
+        id: Date.now(),
+        text: decryptedMessage.text,
+        image:decryptedMessage.image,
+        time: decryptedMessage.time
       }
-      setMessages((prev)=>[...prev,newMessage])
+      setMessages((prev) => [...prev, newMessage])
     }
     else {
-      console.log("message belongs to : ",from);
+      console.log("message belongs to : ", from);
     }
   }
-  
-  useSocketConnection(handleReceive,setSocket);
+
+  useSocketConnection(handleReceive, setSocket);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -107,22 +109,21 @@ const Home = () => {
         setIsTyping(true);
         setTimeout(() => setIsTyping(false), 2000);
       }, 1000);
-    
+
       // updated shared secret 
-      const otherPublicKey=selectedContact.publicKey;
-      const sharedSecret=deriveSharedSecret(myPrivateKey,otherPublicKey);
-      sharedSecretRef.current=sharedSecret;
+      const otherPublicKey = selectedContact.publicKey;
+      const sharedSecret = deriveSharedSecret(myPrivateKey, otherPublicKey);
+      sharedSecretRef.current = sharedSecret;
 
       return () => clearTimeout(typingTimer);
     }
-  }, [selectedContact]);  
+  }, [selectedContact]);
 
   const handleContactSelect = (contact) => {
     setSelectedContact(contact);
-    //  retrive messages to be called here
     setMessages([]);
-    console.log("handle contact select:",contact);
-    currentContact.current=contact;
+    console.log("handle contact select:", contact);
+    currentContact.current = contact;
     if (isMobile) {
       setShowConversation(true);
     }
@@ -130,26 +131,56 @@ const Home = () => {
 
   const handleBackToContacts = () => {
     setShowConversation(false);
-    setSelectedContact(null); 
+    setSelectedContact(null);
   };
 
-  
+  const handleFileChange = async (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      console.log("Selected file:", file);
+      try {
+        console.log("trying upload");
+        let url = await uploadImageToCloudinary(file);
+        console.log("uploadeed");
+        if (url) {
+          // set message
+          if (selectedContact) {
+            const newMessage = {
+              id: Date.now(),
+              text: null,
+              image: url,
+              sender: 'me',
+              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            }
+
+            const encryptedMessage = encryptWithAES(JSON.stringify(newMessage), sharedSecretRef.current);
+            socket.emit("send", { message: encryptedMessage, time: newMessage.time, sendTo: selectedContact.email });
+
+            setMessages((prev) => [...prev, newMessage]);
+            setMessage('');
+          }
+        }
+      } catch (err) {
+        toast.error("Error while sending image");
+      }
+      // You can upload the file or show preview here
+    }
+  };
+
   const handleSendMessage = (e) => {
-    e.preventDefault(); 
-    // encrypt messages here 
-    
+    e.preventDefault();
     if (message.trim() && selectedContact) {
       const newMessage = {
         id: Date.now(),
         text: message,
+        image: null,
         sender: 'me',
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
-      const encryptedMessage=encryptWithAES(JSON.stringify(newMessage),sharedSecretRef.current);
-      socket.emit("send",{message:encryptedMessage , time:newMessage.time,sendTo:selectedContact.email});
+      const encryptedMessage = encryptWithAES(JSON.stringify(newMessage), sharedSecretRef.current);
+      socket.emit("send", { message: encryptedMessage, time: newMessage.time, sendTo: selectedContact.email });
 
-      // no need to decrypt and add directly
-      setMessages((prev)=>[...prev,newMessage]);
+      setMessages((prev) => [...prev, newMessage]);
       setMessage('');
     }
   };
@@ -183,7 +214,7 @@ const Home = () => {
                 onClick={() => handleContactSelect(contact)}
               >
                 <div className={styles.contactAvatar}>
-                  <span>{contact.profilePic}</span>
+                  <span><img src={contact.profilePic} alt="" className={styles.profilePhoto} /></span>
                   {/* to be handled with user profile image  */}
                   {contact.online && <div className={styles.onlineIndicator}></div>}
                 </div>
@@ -218,8 +249,8 @@ const Home = () => {
                   </button>
                 )}
                 <div className={styles.contactAvatar}>
-                  <span>{selectedContact.avatar}</span>
-                  {/* to be handled with img */}
+                  {/* <span>{selectedContact.profilePic}</span> this is replaced*/}
+                  <span> <img src={selectedContact.profilePic} alt="" className={styles.profilePhoto} /></span>
                   {selectedContact.online && <div className={styles.onlineIndicator}></div>}
                 </div>
                 <div className={styles.contactDetails}>
@@ -243,7 +274,8 @@ const Home = () => {
                     className={`${styles.message} ${msg.sender === 'me' ? styles.myMessage : styles.otherMessage}`}
                   >
                     <div className={styles.messageContent}>
-                      <p>{msg.text}</p>
+                      {msg.text && <p>{msg.text}</p>}
+                      {msg.image && <img src={msg.image} alt='Cannot load image' className={styles.photo}/>}
                       <span className={styles.messageTime}>{msg.time}</span>
                     </div>
                   </div>
@@ -263,7 +295,20 @@ const Home = () => {
 
               {/* Message Input */}
               <form className={styles.messageInput} onSubmit={handleSendMessage}>
-                <button type="button" className={styles.attachBtn}>📎</button>
+                <button
+                  type="button"
+                  className={styles.changePhotoBtn}
+                  onClick={() => fileInputRef.current.click()}
+                >
+                  📎
+                </button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  style={{ display: 'none' }}
+                />
                 <input
                   type="text"
                   value={message}
