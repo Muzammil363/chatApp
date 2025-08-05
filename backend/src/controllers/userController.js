@@ -5,6 +5,7 @@ import { Request } from '../models/Requests.js';
 import { generateChatId } from '../utils/chat.js'
 import { Chat } from '../models/ChatData.js';
 import moment from "moment"
+import { Messages } from '../models/Messages.js';
 
 export const profile = async (req, res) => {
     console.log("req.user in profile: ", req.user); // email
@@ -34,8 +35,8 @@ export const updateProfile = async (req, res) => {
     if (profilePic) {
         try {
             console.log("req.user in profile update: ", req.user);
-            let response =await User.findOneAndUpdate({email:req.user},{profilePic:profilePic},{new:true});
-            console.log("updated profile: ",response);
+            let response = await User.findOneAndUpdate({ email: req.user }, { profilePic: profilePic }, { new: true });
+            console.log("updated profile: ", response);
             return res.status(200).json({ messsage: "updated profile successfully" });
         } catch (error) {
             console.log("error in updateProfile: ", error);
@@ -47,44 +48,50 @@ export const updateProfile = async (req, res) => {
 export const getContacts = async (req, res) => {
     try {
         const loggedIn = req.user;
-      
+
         const contactDocs = await Contacts.find({ user: loggedIn });
         let contactEmails = contactDocs.map(contact => contact.contact);
 
         const contacts = await User.find({ email: { $in: contactEmails } })
             .select('email fullName profilePic status lastSeen publicKey');
 
-        let emailToChatId = {};
+        let emailToChatId = {}; // chatId , email
         let chatIdList = [];
         contactDocs.forEach(doc => {
             emailToChatId[doc.contact] = doc.chatId;
             chatIdList.push(doc.chatId);
         })
 
-        let lastMessagesList = await Chat.find({ chatId: { $in: chatIdList } });
+        let lastMessagesList = await Chat.find({ chatId: { $in: chatIdList } }); // docs of chatId , members , lastMessage , unreads
 
-        let lastMsg = {};
+        let lastMsg = {}; // chatId ,a doc from  lastMessageList
         lastMessagesList.forEach(msg => {
             lastMsg[msg.chatId] = msg; // store message and unread count
         })
+
         const data = contacts.map(contact => {
-            const chatId = emailToChatId[contact.email]
+            const chatId = emailToChatId[contact.email];
+            const lm = lastMsg[chatId] ? lastMsg[chatId].lastMessage.message : null;
+            const unreadMap = lastMsg[chatId] ? lastMsg[chatId].unreadCounts : []
+            let createdAt = lastMsg[chatId] ? lastMsg[chatId].createdAt : null;
+
             return ({
                 email: contact.email,
                 fullName: contact.fullName,
                 profilePic: contact.profilePic,
-                publicKey:contact.publicKey,
-                online:contact.status==="online"?true:false,
-                lastSeen:contact.status==="offline"?moment(contact.lastSeen).fromNow():null,
-                chatId: emailToChatId[contact.email],
-                lastMessage: lastMsg[chatId]
+                publicKey: contact.publicKey,
+                online: contact.status === "online" ? true : false,
+                lastSeen: contact.status === "offline" ? moment(contact.lastSeen).fromNow() : null,
+                chatId: chatId,
+                lastMessage: lm,
+                createdAt: createdAt,
+                unread: unreadMap.find(u => u.user == loggedIn)?.count || 0
             })
         }
         );
-
         data.sort((a, b) => {
-            const tA = a.lastMessage ? new Date(a.lastMessage.createdAt).getTime() : 0;
-            const tB = b.lastMessage ? new Date(b.lastMessage.createdAt).getTime() : 0;
+            const tA = a.lastMessage ? new Date(a.createdAt).getTime() : 0;
+            const tB = b.lastMessage ? new Date(b.createdAt).getTime() : 0;
             return tB - tA;
         });
 
@@ -223,5 +230,25 @@ export const cancelRequest = async (req, res) => {
         return res.status(200).json({ message: "Canceled Request successfully" });
     } catch (error) {
         return res.status(500).json({ message: "Server side error while canceling request" });
+    }
+}
+
+
+export const deleteContact = async (req, res) => {
+    try {
+        const loggedIn = req.user;
+        const toDelete = req.params.id;
+        const chatId=generateChatId(loggedIn,toDelete);
+    let del = await Contacts.deleteMany({
+        $or: [
+            { user: loggedIn, contact: toDelete },
+            { user: toDelete, contact: loggedIn }
+        ]
+    });
+    let delMsgs=await Messages.deleteMany({chatId:chatId});
+    return res.status(200).json({message:"deleted succesfully"});
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({message:"server side error while deleting"});
     }
 }

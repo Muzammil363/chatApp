@@ -8,64 +8,85 @@ import { useSocketConnection } from '../hooks/useSocketConnection.js';
 import { decryptKeyActions, privateKeyActions } from '../store/index.js';
 import { deriveSharedSecret, encryptWithAES, decryptWithAES } from '../services/Encryption.js';
 import { uploadImageToCloudinary } from '../services/CloudinaryUpload.js';
+import { clearUnread } from '../services/User.js';
+import { clearChat, deleteContact, deleteMessage } from '../services/Delete.js';
+import { decryptAll, loadConversation } from '../services/Loaders.js';
 
 const Home = () => {
   const [selectedContact, setSelectedContact] = useState(null);
   const [showConversation, setShowConversation] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  // const [connected,setConnected]=useState(false);
+  const [searched, setSearched] = useState('');
+  const [searchedContacts, setSearchedContacts] = useState([]);
   const [socket, setSocket] = useState({});
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState([]);
   const [contacts, setContacts] = useState([]);
+  const [cursor, setCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
+  const messageBoxRef = useRef();
   const currentContact = useRef();
   const sharedSecretRef = useRef();
   const fileInputRef = useRef(null);
-  const typingTimer=useRef();
+  const typingTimer = useRef();
+
   const dispatch = useDispatch();
   const myPrivateKey = useSelector(state => state.privateKey.key);
-  // socket connection
 
   const handleReceive = (data) => {
-    console.log("data received: ", data);
     const curContactVal = currentContact.current;
     let from = data.fromMail;
 
     if (curContactVal && from == curContactVal.email && data.message) {
-      // decrypt and add
       const decryptedMessage = JSON.parse(decryptWithAES(data.message, sharedSecretRef.current));
-
-      let newMessage = {
+      let newMessagePart = {
         id: Date.now(),
         text: decryptedMessage.text,
-        image:decryptedMessage.image,
+        image: decryptedMessage.image,
         time: decryptedMessage.time
       }
-      setMessages((prev) => [...prev, newMessage])
-    }
-    else {
-      console.log("message belongs to : ", from);
+      let newMessage = {
+        message: newMessagePart,
+        sender: data.fromMail
+      }
+      setMessages((prev) => [...prev, newMessage]);
     }
   }
 
-  const handleTypingReceive=(from)=>{
+  const handleTypingReceive = (from) => {
     if (from === currentContact.current.email) {
-    clearTimeout(typingTimer.current);
-    setIsTyping(true);
-    typingTimer.current = setTimeout(() => {
-      setIsTyping(false);
-    }, 2000);
-  }
+      clearTimeout(typingTimer.current);
+      setIsTyping(true);
+      typingTimer.current = setTimeout(() => {
+        setIsTyping(false);
+      }, 2000);
+    }
   }
 
-  const handleStopTyping=(from)=>{
-    if(from==currentContact.current.email) {
+  const handleStopTyping = (from) => {
+    if (from == currentContact.current.email) {
       setIsTyping(false);
     }
   }
-  useSocketConnection(handleStopTyping,handleTypingReceive,handleReceive, setSocket);
+
+  const loadMessages = async () => {
+    if (isLoading || !hasMore) {
+      return;
+    }
+
+    setIsLoading(true);
+    const data = await loadConversation(currentContact.current.email, cursor);
+    const decrypted = decryptAll(data.messages, sharedSecretRef.current);
+    setMessages(prev => [...decrypted.reverse(), ...prev]);
+    setCursor(data.nextCursor);
+    setHasMore(!!data.nextCursor);
+    setIsLoading(false);
+  };
+
+  useSocketConnection(handleStopTyping, handleTypingReceive, handleReceive, setSocket);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -75,7 +96,22 @@ const Home = () => {
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+  }, []); // for responsive
+
+  useEffect(() => {
+    if (messageBoxRef.current) {
+      const msgArea = messageBoxRef.current;
+      const handleScroll = async () => {
+        if (msgArea.scrollTop === 0) {
+          await loadMessages();
+        }
+      };
+
+      msgArea.addEventListener('scroll', handleScroll);
+      return () => msgArea.removeEventListener('scroll', handleScroll);
+    }
+  }, [cursor, hasMore]);
+
 
   useEffect(() => {
     async function loadContacts() {
@@ -89,16 +125,38 @@ const Home = () => {
     }
     loadContacts();
   }, [])
-
   useEffect(() => {
     if (selectedContact) {
       const otherPublicKey = selectedContact.publicKey;
       const sharedSecret = deriveSharedSecret(myPrivateKey, otherPublicKey);
       sharedSecretRef.current = sharedSecret;
 
-      return () => clearTimeout(typingTimer);
+      setCursor(null);
+      setHasMore(true);
+
+      async function clear() {
+        let clearTo = currentContact.current.email;
+
+        let data = await loadConversation(clearTo, null);
+        setCursor(data.nextCursor);
+        const decrypted = decryptAll(data.messages, sharedSecretRef.current);
+        setMessages(decrypted.reverse());
+
+        let res = await clearUnread(clearTo);
+        if (res) {
+          for (let i = 0; i < contacts.length; i++) {
+            if (contacts[i].email === clearTo) {
+              contacts[i].unread = 0;
+              break;
+            }
+          }
+        }
+      }
+
+      clear();
     }
   }, [selectedContact]);
+
 
   const handleContactSelect = (contact) => {
     setSelectedContact(contact);
@@ -131,13 +189,23 @@ const Home = () => {
               text: null,
               image: url,
               sender: 'me',
-              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              time: new Date().toLocaleString('en-US', {
+                month: 'short',
+                day: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true, // optional: for AM/PM
+              })
             }
 
             const encryptedMessage = encryptWithAES(JSON.stringify(newMessage), sharedSecretRef.current);
-            socket.emit("send", { message: encryptedMessage, time: newMessage.time, sendTo: selectedContact.email });
-
-            setMessages((prev) => [...prev, newMessage]);
+            socket.emit("send", { message: encryptedMessage, time: newMessage.id, sendTo: selectedContact.email });
+            const addMessage = {
+              message: newMessage,
+              sender: 'me'
+            }
+            setMessages((prev) => [...prev, addMessage]);
             setMessage('');
           }
         }
@@ -156,20 +224,88 @@ const Home = () => {
         text: message,
         image: null,
         sender: 'me',
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        time: new Date().toLocaleString('en-US', {
+          month: 'short',
+          day: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        })
       };
       const encryptedMessage = encryptWithAES(JSON.stringify(newMessage), sharedSecretRef.current);
-      socket.emit("send", { message: encryptedMessage, time: newMessage.time, sendTo: selectedContact.email });
-
-      setMessages((prev) => [...prev, newMessage]);
+      socket.emit("send", { message: encryptedMessage, time: newMessage.id, sendTo: selectedContact.email });
+      const addMessage = {
+        message: newMessage,
+        sender: 'me'
+      }
+      setMessages((prev) => [...prev, addMessage]);
       setMessage('');
     }
   };
 
-  const handleIsTyping = (e)=>{
-    socket.emit("typing",{to:currentContact.current.email});
+  const handleIsTyping = (e) => {
+    socket.emit("typing", { to: currentContact.current.email });
   }
-  
+
+  const handleContactSearch = (e) => {
+    let value = e.target.value;
+    setSearched(value);
+    const filtered = contacts.filter(contact =>
+      contact.fullName.toLowerCase().startsWith(value.toLowerCase())
+    );
+    setSearchedContacts(filtered);
+  }
+
+  const handleContactDelete = async () => {
+    const toDelete = currentContact.current.email;
+    let cnf=confirm("You both will be no longer friends by Deleting contact!!");
+    if(!cnf) {
+        return ;
+    }
+    let res = await deleteContact(toDelete);
+    if (!res) {
+      toast.error("Cannot delete contact");
+      return;
+    }
+    if (currentContact.current.email === toDelete) {
+      currentContact.current = null;
+      setSelectedContact(null);
+      setMessages([]);
+    }
+
+    let updatedContacts = contacts.filter(u => u.email != toDelete);
+    setContacts(updatedContacts);
+    toast.success("Deleted contact successfully");
+  }
+
+  const handleClearChat = async () =>{
+    const toClear=currentContact.current.email;
+    let cnf=confirm("Clear chat will delete messages permanently for both users and cannot");
+    if(!cnf) {
+      return ;
+    }
+    let res=await clearChat(toClear);
+    if(!res) {
+      toast.error("Cannot clear chat");
+      return ;
+    }
+    setMessages([]);
+    toast.success("Chat cleared");
+  }
+
+  const handleDeleteMessage=async (id) =>{
+    let cnf=confirm("Delete message for everyone permanently?");
+    if(!cnf) return ;
+    let res=await deleteMessage(id);
+    if(res) {
+      let updatedMessages=messages.filter(msg=>msg._id!=id);
+      setMessages(updatedMessages);
+      toast.success("Message Deleted for everyone");
+      return ;
+    }
+    toast.error("Cannot delete the message");
+  }
   return (
     <div className={styles.homeContainer}>
       {/* Navigation Bar */}
@@ -188,11 +324,13 @@ const Home = () => {
               type="text"
               placeholder="Search conversations..."
               className={styles.searchInput}
+              value={searched}
+              onChange={handleContactSearch}
             />
           </div>
 
           <div className={styles.contactsList}>
-            {contacts.map(contact => (
+            {searched.length == 0 ? contacts.map(contact => (
               <div
                 key={contact.chatId}
                 className={`${styles.contactItem} ${selectedContact && selectedContact.chatId === contact.chatId ? styles.active : ''}`}
@@ -200,13 +338,11 @@ const Home = () => {
               >
                 <div className={styles.contactAvatar}>
                   <span><img src={contact.profilePic} alt="" className={styles.profilePhoto} /></span>
-                  {/* to be handled with user profile image  */}
                   {contact.online && <div className={styles.onlineIndicator}></div>}
                 </div>
                 <div className={styles.contactInfo}>
                   <div className={styles.contactName}>{contact.fullName}</div>
                   <div className={styles.lastMessage}>{contact.lastMessage}</div>
-                  {/* last message and unread counts will be handled  */}
                 </div>
                 <div className={styles.contactMeta}>
                   <div className={styles.messageTime}>{contact.time}</div>
@@ -215,7 +351,31 @@ const Home = () => {
                   )}
                 </div>
               </div>
-            ))}
+            )) :
+              searchedContacts.map(contact => (
+                <div
+                  key={contact.chatId}
+                  className={`${styles.contactItem} ${selectedContact && selectedContact.chatId === contact.chatId ? styles.active : ''}`}
+                  onClick={() => handleContactSelect(contact)}
+                >
+                  <div className={styles.contactAvatar}>
+                    <span><img src={contact.profilePic} alt="" className={styles.profilePhoto} /></span>
+                    {/* to be handled with user profile image  */}
+                    {contact.online && <div className={styles.onlineIndicator}></div>}
+                  </div>
+                  <div className={styles.contactInfo}>
+                    <div className={styles.contactName}>{contact.fullName}</div>
+                    <div className={styles.lastMessage}>{contact.lastMessage}</div>
+                    {/* last message and unread counts will be handled  */}
+                  </div>
+                  <div className={styles.contactMeta}>
+                    <div className={styles.messageTime}>{contact.time}</div>
+                    {contact.unread > 0 && (
+                      <div className={styles.unreadBadge}>{contact.unread}</div>
+                    )}
+                  </div>
+                </div>
+              ))}
           </div>
         </div>
 
@@ -245,23 +405,38 @@ const Home = () => {
                   </span>
                 </div>
                 <div className={styles.conversationActions}>
-                  <button className={styles.actionBtn}>📞</button>
-                  <button className={styles.actionBtn}>📹</button>
-                  <button className={styles.actionBtn}>ℹ️</button>
+                  <button
+                    className={styles.actionBtn}
+                    onClick={handleContactDelete}
+                  >Delete Contact
+                  </button>
+
+                  <button 
+                  className={styles.actionBtn}
+                  onClick={handleClearChat}
+                  >Delete Chat
+                  </button>
                 </div>
               </div>
 
               {/* Messages Area */}
-              <div className={styles.messagesArea}>
+              <div ref={messageBoxRef} className={styles.messagesArea}>
+                {isLoading && <p className={styles.loader}>Loading...</p>}
                 {messages.map(msg => (
                   <div
                     key={msg.id}
-                    className={`${styles.message} ${msg.sender === 'me' ? styles.myMessage : styles.otherMessage}`}
+                    className={`${styles.message} ${msg.sender !== currentContact.current.email ? styles.myMessage : styles.otherMessage}`}
                   >
                     <div className={styles.messageContent}>
-                      {msg.text && <p>{msg.text}</p>}
-                      {msg.image && <img src={msg.image} alt='Cannot load image' className={styles.photo}/>}
-                      <span className={styles.messageTime}>{msg.time}</span>
+                      {msg.message.text && <p>{msg.message.text}</p>}
+                      {msg.message.image && <a href={msg.message.image} target="_blank">
+                        <img src={msg.message.image} alt='Cannot load image' className={styles.photo} />
+                      </a>}
+                      <span className={styles.messageTime}>{msg.message.time}</span>
+                    <div 
+                      style={{ cursor: 'pointer', color: 'red' }} 
+                      onClick={()=>{handleDeleteMessage(msg._id)}}
+                    >🗑️</div>
                     </div>
                   </div>
                 ))}
@@ -276,6 +451,8 @@ const Home = () => {
                     <span className={styles.typingText}>{selectedContact.fullName} is typing...</span>
                   </div>
                 )}
+
+                {/* {isLoading && <p className={styles.loader}>Loading...</p>} */}
               </div>
 
               {/* Message Input */}

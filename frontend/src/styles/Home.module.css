@@ -324,17 +324,16 @@
 }
 
 .actionBtn {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+  border-radius: 10px;
   background: rgba(26, 26, 46, 0.1);
   border: none;
-  font-size: 1.2rem;
+  font-size: 1 rem;
   cursor: pointer;
   transition: all 0.3s;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 10px 15px;
 }
 
 .actionBtn:hover {

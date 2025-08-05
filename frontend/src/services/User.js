@@ -68,3 +68,15 @@ export const getToken=()=>{
     let token=localStorage.getItem("accessToken");
     return token;
 }
+
+export const clearUnread = async(clearTo)=> {
+    let res=await fetch(`http://localhost:3000/api/chat/clear/${clearTo}`,{
+        method:'PATCH',
+        credentials:'include',
+        headers:{
+            "content-type":"application/json"
+        }
+    });
+    if(res.status==200) return true;
+    return false;
+}

@@ -12,41 +12,43 @@ export const saveMessage = async (sender, sendTo, data) => {
             console.log("Missing required fields.");
             return;
         }
-
         const chatId = generateChatId(sender, sendTo);
         const lastMessage = {
             message: data.message,
             sender: sender,
-            createdAt: data.time
         };
-
+        
         await Messages.create({
             chatId,
             sender,
             message: data.message,
             createdAt: data.time
         });
-
+        
         const existingChat = await Chat.findOne({ chatId });
-
+        
         if (existingChat) {
-            const counts = new Map(existingChat.unreadCounts);
-            counts.set(sender, counts.get(sender) || 0);
-            counts.set(sendTo, (counts.get(sendTo) || 0) + 1);
-
+            const counts = existingChat.unreadCounts;
+            for(let i=0;i<counts.length;i++) {
+                if(counts[i].user==sendTo) {
+                    counts[i].count+=1;
+                }
+            }
+            
             await Chat.updateOne(
                 { chatId:chatId },
-                { $set: { lastMessage:lastMessage, unreadCounts: counts } }
+                { $set: { lastMessage:lastMessage, unreadCounts: counts , createdAt:data.time } }
             );
         } else {
-            const counts = new Map();
-            counts.set(sender, 0);
-            counts.set(sendTo, 1);
-
+            const counts = []
+            counts.push({user:sender,count:0})
+            counts.push({user:sendTo,count:1})
+            
             await Chat.create({
                 chatId,
                 members: [sender, sendTo],
-                lastMessage,
+                lastMessage, 
+                createdAt: data.time,
                 unreadCounts: counts
             });
         }

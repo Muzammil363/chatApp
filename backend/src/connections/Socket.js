@@ -31,7 +31,7 @@ export const socketActions = (socket) => {
             let socketId = findUserSocketByEmail(sendTo);
             io.to(socketId).emit("recieve", { message: message, fromMail: socket.email });
         }
-        // await saveMessage(sender,sendTo,data);
+        await saveMessage(sender,sendTo,data);
     })
 
     socket.on("typing", (data) => {

@@ -3,7 +3,9 @@ import { authMiddleware } from '../middleware/authMiddleware.js';
 import { profile,updateProfile,
     getContacts,fetchFor,
     sendRequest, fetchRequests , acceptRequest,deleteRequest,
-    cancelRequest} from '../controllers/userController.js';
+    cancelRequest,
+    deleteContact
+} from '../controllers/userController.js';
 
 
 const router=express.Router();
@@ -13,6 +15,7 @@ router.get('/profile',authMiddleware,profile);
 router.patch('/updateProfile',authMiddleware,updateProfile);
 
 router.get('/contacts',authMiddleware,getContacts);
+router.delete('/contact/:id',authMiddleware,deleteContact);
 router.get('/find/:id',authMiddleware,fetchFor);
 
 router.get('/fetchRequests',authMiddleware,fetchRequests);

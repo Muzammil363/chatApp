@@ -7,18 +7,24 @@ const chatSchema = new mongoose.Schema({
     unique: true
   },
   members: {
-    type: [String], 
+    type: [String],
     required: true
   },
   lastMessage: {
     message: String,
     sender: String,
-    createdAt: String
+  },
+  createdAt: {
+    type:String
   },
   unreadCounts: {
-    type: Map,
-    of: Number,
-    default: {}
+    type: [
+      {
+        user: { type: String, required: true }, // email
+        count: { type: Number, default: 0 }
+      }
+    ],
+    default: []
   }
 }, { timestamps: true });
 
