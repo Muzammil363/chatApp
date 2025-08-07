@@ -15,6 +15,7 @@ export const updatePassword=async (oldPassword,newPassword)=>{
 }
 
 export const updateName=async (newName)=>{
+    console.log("updating name to : ",newName);
     let res=await fetch('http://localhost:3000/user/updateProfile',{
         method:'PATCH',
         credentials:'include',

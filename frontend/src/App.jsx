@@ -12,7 +12,8 @@ import Landing from './pages/Landing';
 import AuthComponent from './components/AuthComponent';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import Home from './components/Home';
-import Profile from './components/Profile';
+// import Profile from './components/Profile';
+import Profile from './pages/Profile.jsx';
 import Request from './components/Request';
 import { Toaster } from 'react-hot-toast';
 import RootLayout from './components/RootLayout.jsx'

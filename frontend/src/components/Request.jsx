@@ -141,8 +141,8 @@ const Request = () => {
                                             receivedRequests.map(request => (
                                                 <div key={request._id} className={styles.reqCard}>
                                                     <div className={styles.requestAvatar}>
-                                                        <span>{request.profilePic}</span> 
-                                                        {/* to be handled for user image */}
+                                                        {/* <span>{request.profilePic}</span>  */}
+                                                        <img src={request.profilePic} alt="" />
                                                     </div>
                                                     <div className={styles.requestInfo}>
                                                         <h4>{request.fullName}</h4>
@@ -186,8 +186,8 @@ const Request = () => {
                                             sentRequests.map(request => (
                                                 <div key={request.email} className={styles.reqCard}>
                                                     <div className={styles.requestAvatar}>
-                                                        <span>{request.avatar}</span>
-                                                        {/* to be handled with profilePic and img */}
+                                                        {/* <span>{request.avatar}</span> */}
+                                                        <img src={request.profilePic} alt="" />
                                                     </div>
                                                     <div className={styles.requestInfo}>
                                                         <h4>{request.fullName}</h4>
