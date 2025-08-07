@@ -434,6 +434,7 @@ const Home = () => {
                       </a>}
                       <span className={styles.messageTime}>{msg.message.time}</span>
                     <div 
+                      className={msg.sender ===currentContact.current.email && styles.hidden}
                       style={{ cursor: 'pointer', color: 'red' }} 
                       onClick={()=>{handleDeleteMessage(msg._id)}}
                     >🗑️</div>

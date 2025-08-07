@@ -104,8 +104,11 @@ export const clearChat = async (req, res) => {
 export const deleteMessage = async (req, res) => {
     try {
         const id = req.params.id;
-        console.log("id: ",id);
-        let del = await Messages.deleteOne({ _id: id });
+        let message=await Messages.findOne({_id:id});
+        if(message && message.sender!== req.user) {
+            return res.status(403).json({msg:"Forbidden"})
+        }
+        let del = await Messages.deleteOne({ _id: id});
         return res.status(200).json({ message: "Deleted successfully" });
     } catch (error) {
         console.log(error);
