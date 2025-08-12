@@ -12,6 +12,7 @@ export const saveMessage = async (sender, sendTo, data) => {
             console.log("Missing required fields.");
             return;
         }
+        console.log("data: ",data)
         const chatId = generateChatId(sender, sendTo);
         const lastMessage = {
             message: data.message,
@@ -20,6 +21,7 @@ export const saveMessage = async (sender, sendTo, data) => {
         
         await Messages.create({
             chatId,
+            mid:data.time,
             sender,
             message: data.message,
             createdAt: data.time

@@ -23,7 +23,6 @@ export const clearChat=async (email) => {
 }
 
 export const deleteMessage=async (id)=>{
-    console.log("id on frontend ",id);
     let res=await fetch(`http://localhost:3000/api/chat/deleteMessage/${id}`,{
         method:'DELETE',
         credentials:'include',

@@ -29,7 +29,8 @@ export const socketActions = (socket) => {
         let message = data.message;
         if (sendTo && message) {
             let socketId = findUserSocketByEmail(sendTo);
-            io.to(socketId).emit("recieve", { message: message, fromMail: socket.email });
+            
+            io.to(socketId).emit("recieve", { message: message, time:data.time ,fromMail: socket.email });
         }
         await saveMessage(sender,sendTo,data);
     })
@@ -42,6 +43,14 @@ export const socketActions = (socket) => {
             io.to(socketId).emit("typing", { from: sender });
         }
     });
+
+    socket.on("deleted",(data)=>{
+        let emitTo=data.to;
+        if(emitTo) {
+            let socketId=findUserSocketByEmail(emitTo);
+            io.to(socketId).emit("deletedId",{id:data.id});
+        }
+    })
 
     socket.on("disconnect", async () => {
         for (const [email, id] of socketMap.entries()) {

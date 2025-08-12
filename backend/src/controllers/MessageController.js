@@ -62,7 +62,6 @@ export const sendMessageForId = async (req, res) => {
     }
 }
 
-
 export const clearUnread = async (req, res) => {
     try {
         const clearTo = req.params.user;
@@ -92,8 +91,8 @@ export const clearChat = async (req, res) => {
         const loggedIn = req.user;
         const email = req.params.id;
         const chatId = generateChatId(email, loggedIn);
-        console.log("chat id generated to clear: ", chatId);
 
+        let lastMsg=await Chat.deleteOne({chatId:chatId});
         let clear = await Messages.deleteMany({ chatId });
         return res.status(200).json({ message: "deleted successfully" });
     } catch (error) {
@@ -104,11 +103,13 @@ export const clearChat = async (req, res) => {
 export const deleteMessage = async (req, res) => {
     try {
         const id = req.params.id;
-        let message=await Messages.findOne({_id:id});
+        let message=await Messages.findOne({mid:id});
+
         if(message && message.sender!== req.user) {
             return res.status(403).json({msg:"Forbidden"})
         }
-        let del = await Messages.deleteOne({ _id: id});
+
+        let del = await Messages.deleteOne({ mid: id});
         return res.status(200).json({ message: "Deleted successfully" });
     } catch (error) {
         console.log(error);

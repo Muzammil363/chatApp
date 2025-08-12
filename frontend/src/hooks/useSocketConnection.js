@@ -3,7 +3,7 @@ import toast from "react-hot-toast";
 import { connectSocket } from '../socket.js';
 // import socket from "../socket";// adjust the path if needed
 
-export const useSocketConnection = (handleStopTyping,handleTypingReceive,handleReceive,setSocket) => {
+export const useSocketConnection = (handleStopTyping,handleTypingReceive,handleReceive,setSocket ,handleDeletedMessage) => {
   // const [connected,setConnected]=useState(false);
     useEffect(() => {
       let token = localStorage.getItem("accessToken");
@@ -36,11 +36,18 @@ export const useSocketConnection = (handleStopTyping,handleTypingReceive,handleR
       const onStopTyping=(data)=>{
         handleStopTyping(data.from)
       }
+
+      const onDeletedId=(data)=>{
+        console.log("delete event occured");
+        handleDeletedMessage(data.id);
+      }
+
       socket.on("connect", onConnect);
       socket.on("disconnect", onDisconnect);
       socket.on("recieve",onRecieve);
       socket.on("typing",onTyping);
       socket.on("stop-typing",onStopTyping);
+      socket.on("deletedId",onDeletedId);
   
       // Cleanup
       return () => {
