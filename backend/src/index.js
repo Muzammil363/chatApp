@@ -54,7 +54,6 @@ export const socketMap=new Map();
 io.use((socket, next) => {
     const token = socket.handshake.auth.token;
     if (!token) return next(new Error("No token provided"));
-    // console.log("token: ",token)
     try {
         const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET); 
         socket.email = decoded.email; // attach email to socket

@@ -20,5 +20,5 @@ export async function uploadImageToCloudinary(file) {
   }
 
   const data = await res.json();
-  return data.secure_url; // 🔥 use this in <img src=... />
+  return data.secure_url;
 }
