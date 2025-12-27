@@ -39,6 +39,7 @@ export const useSocketConnection = (handleStopTyping,handleTypingReceive,handleR
 
       const onDeletedId=(data)=>{
         console.log("delete event occured");
+        console.log("data.id:", data.id);
         handleDeletedMessage(data.id);
       }
 
@@ -47,6 +48,7 @@ export const useSocketConnection = (handleStopTyping,handleTypingReceive,handleR
       socket.on("recieve",onRecieve);
       socket.on("typing",onTyping);
       socket.on("stop-typing",onStopTyping);
+      // Event name is correct ! OK 
       socket.on("deletedId",onDeletedId);
   
       // Cleanup

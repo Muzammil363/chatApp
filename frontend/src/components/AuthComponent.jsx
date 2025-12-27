@@ -232,17 +232,6 @@ const AuthComponent = () => {
                     <span>or</span>
                 </div>
 
-                {isLogin && <div className={styles.socialAuth}>
-                    <button className={styles.socialBtn}>
-                        <span className={styles.socialIcon}>🔍</span>
-                        Continue with Google
-                    </button>
-                    <button className={styles.socialBtn}>
-                        <span className={styles.socialIcon}>📘</span>
-                        Continue with Facebook
-                    </button>
-                </div>}
-
                 <div className={styles.authSwitch}>
                     <p>
                         {isLogin ? "Don't have an account?" : "Already have an account?"}

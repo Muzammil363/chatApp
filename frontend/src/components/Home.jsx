@@ -11,6 +11,7 @@ import { uploadImageToCloudinary } from '../services/CloudinaryUpload.js';
 import { clearUnread } from '../services/User.js';
 import { clearChat, deleteContact, deleteMessage } from '../services/Delete.js';
 import { decryptAll, loadConversation } from '../services/Loaders.js';
+import { use } from 'react';
 
 const Home = () => {
   const [selectedContact, setSelectedContact] = useState(null);
@@ -36,6 +37,10 @@ const Home = () => {
   const dispatch = useDispatch();
   const myPrivateKey = useSelector(state => state.privateKey.key);
 
+  /*
+    Handlers for socket events
+  */
+
   const handleReceive = (data) => {
     const curContactVal = currentContact.current;
     let from = data.fromMail;
@@ -46,7 +51,7 @@ const Home = () => {
         text: decryptedMessage.text,
         image: decryptedMessage.image,
         time: decryptedMessage.time,
-        id:data.time,
+        id: data.time,
       }
       let newMessage = {
         message: newMessagePart,
@@ -86,13 +91,23 @@ const Home = () => {
     setIsLoading(false);
   };
 
-  const handleDeletedMessage= (_id) => {
-      let updated=messages.filter(msg=>msg.message.id!=_id);
-      setMessages(updated);
-      toast("Message deleted by sender");
-  }
+  const handleDeletedMessage = (_id) => {
+    try {
+      setMessages((prevMessages) => {
+        const updated = prevMessages.filter(msg => {
+          const currentId = msg.message?.id || msg.id || msg._id;
+          return String(currentId) !== String(_id);
+        });
+        return updated;
+      });
 
-  useSocketConnection(handleStopTyping, handleTypingReceive, handleReceive, setSocket , handleDeletedMessage);
+      toast("Message deleted by sender");
+    } catch (error) {
+      console.error("Delete handler error:", error);
+    }
+  };
+
+  useSocketConnection(handleStopTyping, handleTypingReceive, handleReceive, setSocket, handleDeletedMessage);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -130,7 +145,7 @@ const Home = () => {
     }
     loadContacts();
   }, [])
-  
+
   useEffect(() => {
     if (selectedContact) {
       const otherPublicKey = selectedContact.publicKey;
@@ -165,6 +180,9 @@ const Home = () => {
 
 
   const handleContactSelect = (contact) => {
+    if(currentContact.current !=null && currentContact.current === contact) {
+      return ;
+    }
     setSelectedContact(contact);
     setMessages([]);
     currentContact.current = contact;
@@ -241,7 +259,7 @@ const Home = () => {
       const encryptedMessage = encryptWithAES(JSON.stringify(newMessage), sharedSecretRef.current);
       socket.emit("send", { message: encryptedMessage, time: newMessage.id, sendTo: selectedContact.email });
       const addMessage = {
-        mid:newMessage.id,
+        mid: newMessage.id,
         message: newMessage,
         sender: 'me'
       }
@@ -265,9 +283,9 @@ const Home = () => {
 
   const handleContactDelete = async () => {
     const toDelete = currentContact.current.email;
-    let cnf=confirm("You both will be no longer friends by Deleting contact!!");
-    if(!cnf) {
-        return ;
+    let cnf = confirm("You both will be no longer friends by Deleting contact!!");
+    if (!cnf) {
+      return;
     }
     let res = await deleteContact(toDelete);
     if (!res) {
@@ -285,33 +303,33 @@ const Home = () => {
     toast.success("Deleted contact successfully");
   }
 
-  const handleClearChat = async () =>{
-    const toClear=currentContact.current.email;
-    let cnf=confirm("Clear chat will delete messages permanently for both users and cannot");
-    if(!cnf) {
-      return ;
+  const handleClearChat = async () => {
+    const toClear = currentContact.current.email;
+    let cnf = confirm("Clear chat will delete messages permanently for both users and cannot");
+    if (!cnf) {
+      return;
     }
-    let res=await clearChat(toClear);
-    if(!res) {
+    let res = await clearChat(toClear);
+    if (!res) {
       toast.error("Cannot clear chat");
-      return ;
+      return;
     }
     setMessages([]);
     toast.success("Chat cleared");
   }
 
-  const handleDeleteMessage=async (id) =>{
-    let cnf=confirm("Delete message for everyone permanently?");
-    if(!cnf) return ;
-  
-    let res=await deleteMessage(id);
-    if(res) {
-      let updatedMessages=messages.filter(msg=>msg.message.id!=id);
-      socket.emit("deleted",{id:id, to:currentContact.current.email});
+  const handleDeleteMessage = async (id) => {
+    let cnf = confirm("Delete message for everyone permanently?");
+    if (!cnf) return;
+
+    let res = await deleteMessage(id);
+    if (res) {
+      let updatedMessages = messages.filter(msg => msg.message.id != id);
+      socket.emit("deleted", { id: id, to: currentContact.current.email });
 
       setMessages(updatedMessages);
       toast.success("Message Deleted for everyone");
-      return ;
+      return;
     }
     toast.error("Cannot Delete");
   }
@@ -420,9 +438,9 @@ const Home = () => {
                   >Delete Contact
                   </button>
 
-                  <button 
-                  className={styles.actionBtn}
-                  onClick={handleClearChat}
+                  <button
+                    className={styles.actionBtn}
+                    onClick={handleClearChat}
                   >Delete Chat
                   </button>
                 </div>
@@ -437,17 +455,17 @@ const Home = () => {
                     className={`${styles.message} ${msg.sender !== currentContact.current.email ? styles.myMessage : styles.otherMessage}`}
                   >
                     <div className={styles.messageContent}>
-                      <p>{msg.message.id}</p>
+
                       {msg.message.text && <p>{msg.message.text}</p>}
                       {msg.message.image && <a href={msg.message.image} target="_blank">
                         <img src={msg.message.image} alt='Cannot load image' className={styles.photo} />
                       </a>}
                       <span className={styles.messageTime}>{msg.message.time}</span>
-                    <div 
-                      className={msg.sender ===currentContact.current.email && styles.hidden}
-                      style={{ cursor: 'pointer', color: 'red' }} 
-                      onClick={()=>{handleDeleteMessage(msg.message.id)}}
-                    >🗑️</div>
+                      <div
+                        className={msg.sender === currentContact.current.email && styles.hidden}
+                        style={{ cursor: 'pointer', color: 'red' }}
+                        onClick={() => { handleDeleteMessage(msg.message.id) }}
+                      >🗑️</div>
                     </div>
                   </div>
                 ))}

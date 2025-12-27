@@ -105,12 +105,35 @@ export const deleteMessage = async (req, res) => {
         const id = req.params.id;
         let message=await Messages.findOne({mid:id});
 
+        if(!message) {
+            return res.status(404).json({msg:"Message not found"})
+        }
+
         if(message && message.sender!== req.user) {
             return res.status(403).json({msg:"Forbidden"})
         }
 
-        let del = await Messages.deleteOne({ mid: id});
-        return res.status(200).json({ message: "Deleted successfully" });
+        try {
+            let del = await Messages.deleteOne({ mid: id});
+            if(del.acknowledged && del.deletedCount>0) {
+                return res.status(200).json({
+                    success:true,
+                    message:"Message deleted successfully"
+                })
+            }
+            else {
+                return res.status(500).json({
+                    success:false,
+                    message:"Cannot delete message"
+                })
+            }
+        } catch (error) {
+            console.log("At deleting message: ",error);
+            return res.status(500).json({
+                success:false,
+                message:"Cannot delete message"
+            })
+        }
     } catch (error) {
         console.log(error);
         return res.status(500).json({ message: "Server side error while deleting message" });
