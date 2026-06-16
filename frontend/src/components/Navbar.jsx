@@ -1,57 +1,36 @@
-import styles from '../styles/Home.module.css'
-import React, { useState, useEffect } from 'react';
-import socket from '../socket.js'
-import { Link } from 'react-router-dom';
+import React from 'react';
+import { NavLink } from 'react-router-dom';
+import styles from '../styles/Home.module.css';
+
+const navItems = [
+  { to: '/u/home', label: 'Messages', icon: 'M' },
+  { to: '/u/requests', label: 'Requests', icon: 'R' },
+  { to: '/u/profile', label: 'Profile', icon: 'P' },
+];
 
 function Navbar() {
-    const [isMobile, setIsMobile] = useState(false);
-    const [menuOpen, setMenuOpen] = useState(false);
-    
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-
   return (
-    <nav className={styles.navbar}>
-            <div className={styles.navContent}>
-              <div className={styles.logo}>
-                <div className={styles.logoIcon}>💬</div>
-                <h2 className={styles.brandName}>ChatApp</h2>
-              </div>
-              
-              <div className={`${styles.navLinks} ${menuOpen ? styles.navLinksOpen : ''}`}>
-                <Link to={'/u/home'} className={styles.navLink}>
-                  <span className={styles.navIcon}>🏠</span>
-                  Home
-                </Link>
-                <Link to={'/u/profile'} className={styles.navLink}>
-                  <span className={styles.navIcon}>👤</span>
-                  Profile
-                </Link>
-                <Link to={'/u/requests'} className={styles.navLink}>
-                  <span className={styles.navIcon}>📨</span>
-                  Requests
-                </Link>
-              </div>
-              
-              <button 
-                className={styles.menuToggle}
-                onClick={() => setMenuOpen(!menuOpen)}
-              >
-                <span></span>
-                <span></span>
-                <span></span>
-              </button>
-            </div>
-          </nav>
-  )
+    <nav className={styles.navbar} aria-label="Primary">
+      <div className={styles.logo}>
+        <div className={styles.logoIcon}>C</div>
+        <span className={styles.brandName}>CipherChat</span>
+      </div>
+
+      <div className={styles.navLinks}>
+        {navItems.map(item => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+            title={item.label}
+          >
+            <span className={styles.navIcon}>{item.icon}</span>
+            <span className={styles.navLabel}>{item.label}</span>
+          </NavLink>
+        ))}
+      </div>
+    </nav>
+  );
 }
 
-export default Navbar
+export default Navbar;

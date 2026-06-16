@@ -51,6 +51,9 @@ const  privateKeySlice=createSlice({
     reducers:{
         setPrivateKey(state,action) {
             state.key=action.payload.privateKey
+        },
+        clearPrivateKey(state) {
+            state.key=null
         }
     }
 });

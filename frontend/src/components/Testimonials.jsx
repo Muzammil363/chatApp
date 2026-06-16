@@ -6,7 +6,7 @@ const Testimonials = () => {
     {
       name: 'Sarah Johnson',
       role: 'Marketing Manager',
-      content: 'ChatApp has transformed how our team communicates. The interface is intuitive and the features are exactly what we needed.',
+      content: 'CipherChat has transformed how our team communicates. The interface is intuitive and the features are exactly what we needed.',
       avatar: '👩‍💼'
     },
     {
@@ -28,7 +28,7 @@ const Testimonials = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h2>What Our Users Say</h2>
-          <p>Join thousands of satisfied users who have made ChatApp their go-to messaging platform</p>
+          <p>Join thousands of satisfied users who have made CipherChat their go-to messaging platform</p>
         </div>
         <div className={styles.testimonialsGrid}>
           {testimonials.map((testimonial, index) => (

@@ -11,8 +11,8 @@ html, body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #ffffff;
-  color: #333333;
+  background-color: #f7f8fb;
+  color: #111827;
   line-height: 1.6;
 }
 
@@ -46,10 +46,10 @@ img {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #667eea;
+  background: #cbd5e1;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #5a6fd8;
+  background: #94a3b8;
 }

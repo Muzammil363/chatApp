@@ -8,7 +8,7 @@ const About = () => {
         <div className={styles.aboutContent}>
           <div className={styles.aboutText}>
             <h2>Built for Modern Communication</h2>
-            <p>ChatApp was created with the vision of making communication simple, secure, and enjoyable. Our team of experienced developers and designers have crafted every detail to provide you with the best messaging experience possible.</p>
+            <p>CipherChat was created with the vision of making communication simple, secure, and enjoyable. Our team of experienced developers and designers have crafted every detail to provide you with the best messaging experience possible.</p>
             <div className={styles.stats}>
               <div className={styles.stat}>
                 <h3>10M+</h3>

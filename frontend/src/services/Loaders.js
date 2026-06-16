@@ -12,11 +12,17 @@ export const loadConversation = async (conversationId, cursor = null, limit = 20
 export const decryptAll = (messages, getSecretForMessage) => {
   const decrypted = [];
   for (let i = 0; i < messages.length; i++) {
-    const sharedSecret = typeof getSecretForMessage === "function"
-      ? getSecretForMessage(messages[i])
-      : getSecretForMessage;
-    const parsedMessage = JSON.parse(decryptWithAES(messages[i].message, sharedSecret));
-    decrypted.push({ _id: messages[i]._id, message: parsedMessage, sender: messages[i].sender });
+    try {
+      const sharedSecret = typeof getSecretForMessage === "function"
+        ? getSecretForMessage(messages[i])
+        : getSecretForMessage;
+      const decryptedText = decryptWithAES(messages[i].message, sharedSecret);
+      if (!decryptedText) continue;
+      const parsedMessage = JSON.parse(decryptedText);
+      decrypted.push({ _id: messages[i]._id, message: parsedMessage, sender: messages[i].sender });
+    } catch (error) {
+      continue;
+    }
   }
   return decrypted;
 };

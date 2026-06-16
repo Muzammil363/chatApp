@@ -1,24 +1,61 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import styles from '../styles/Request.module.css';
-import { findUser,findRequests, sendRequest, declineRequest ,acceptUser, cancelRequest} from '../services/Request';
+import {
+    acceptUser,
+    cancelRequest,
+    declineRequest,
+    findRequests,
+    findUser,
+    sendRequest,
+    suggestUsers
+} from '../services/Request';
 import toast from 'react-hot-toast';
+
+const initialsFor = (name = '', email = '') => {
+    const source = name || email;
+    return source
+        .split(/[.\s@_-]+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(part => part[0]?.toUpperCase())
+        .join('') || 'U';
+};
+
+const UserAvatar = ({ user }) => (
+    <div className={styles.userAvatar}>
+        {user.profilePic
+            ? <img src={user.profilePic} alt={`${user.fullName || user.email} profile`} />
+            : <span>{initialsFor(user.fullName, user.email)}</span>}
+    </div>
+);
 
 const Request = () => {
     const [activeTab, setActiveTab] = useState('received');
     const [showSearch, setShowSearch] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [debouncedTerm, setDebouncedTerm] = useState(searchQuery);
+    const [debouncedTerm, setDebouncedTerm] = useState('');
     const [searchResults, setSearchResults] = useState([]);
+    const [suggestedUsers, setSuggestedUsers] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
     const [receivedRequests, setReceivedRequests] = useState([]);
     const [sentRequests, setSentRequests] = useState([]);
 
+    const isSearchActive = debouncedTerm.trim().length > 0;
+    const peopleToShow = isSearchActive ? searchResults : suggestedUsers;
+
     useEffect(() => {
-        // This use effect is to fetch user requests
+        document.title = 'Requests | CipherChat';
+        return () => {
+            document.title = 'CipherChat';
+        };
+    }, []);
+
+    useEffect(() => {
         async function loadRequests() {
             try {
-                let data=await findRequests();
-                setReceivedRequests(data.requests); 
+                const data = await findRequests();
+                setReceivedRequests(data.requests);
                 setSentRequests(data.sentReq);
             } catch (error) {
                 toast.error(error.message);
@@ -28,226 +65,215 @@ const Request = () => {
     }, [activeTab]);
 
     useEffect(() => {
-        // This use effect is for debounce implementation
-        let timer=setTimeout(()=>{
-            setDebouncedTerm(searchQuery);
-        },500)
-
+        const timer = setTimeout(() => {
+            setDebouncedTerm(searchQuery.trim());
+        }, 350);
         return () => clearTimeout(timer);
-    }, [searchQuery])
+    }, [searchQuery]);
 
-    useEffect(()=>{
-        // This use effect is to search with debounced term 
-        if(debouncedTerm.trim()=='') {
-            setSearchResults([]);
-            return ;
+    useEffect(() => {
+        if (!showSearch) return;
+
+        async function loadSuggestions() {
+            setIsLoadingSuggestions(true);
+            try {
+                const users = await suggestUsers(10);
+                setSuggestedUsers(users);
+            } catch (error) {
+                toast.error(error.message);
+            } finally {
+                setIsLoadingSuggestions(false);
+            }
         }
 
+        if (!debouncedTerm) {
+            setSearchResults([]);
+            loadSuggestions();
+        }
+    }, [showSearch, debouncedTerm]);
+
+    useEffect(() => {
+        if (!showSearch || !debouncedTerm) return;
+
         async function loadData() {
+            setIsSearching(true);
             try {
-                let data=await findUser(debouncedTerm);  
+                const data = await findUser(debouncedTerm);
                 setSearchResults(data);
             } catch (error) {
                 toast.error(error.message);
+            } finally {
+                setIsSearching(false);
             }
         }
         loadData();
-    },[debouncedTerm])
+    }, [showSearch, debouncedTerm]);
 
     const handleShowSearch = () => {
         setShowSearch(true);
-        setSearchResults(searchResults);
+        setSearchQuery('');
+        setDebouncedTerm('');
     };
 
     const handleBackToRequests = () => {
         setShowSearch(false);
         setSearchQuery('');
+        setDebouncedTerm('');
         setSearchResults([]);
+        setSuggestedUsers([]);
     };
 
-    const handleAcceptRequest = async (requestId) => {
-        let res=await acceptUser(requestId);
-        if(res) {
-            setReceivedRequests(prev => prev.filter(req => req.email!== requestId));
-            toast.success("Accedped "+requestId+"'s request");
-            return ;
-        }
-        toast.error("Something went wrong");
-    };
-
-    const handleDeclineRequest = async(requestId) => {
-        let res=await declineRequest(requestId);
-        if(res) {
-            toast.success("Declined "+requestId+" request");
-            setReceivedRequests(prev => prev.filter(req => req.email !== requestId));
-        }
-        else toast.error("Error while Declining request");
-    };
-
-    const handleCancelRequest = async (requestId) => {
-        let res=await cancelRequest(requestId);
-        if(res) {
-            setSentRequests(prev => prev.filter(req => req.email !== requestId));
-            toast.success("Canceled Request successfully");
-            return ;
-        }
-        toast.error("Something went wrong");
-
-    };
-
-    const handleSendRequest = async (userId) => {
+    const handleAcceptRequest = async (email) => {
         try {
-            await sendRequest(userId);
-            toast.success("Request sent");
+            await acceptUser(email);
+            setReceivedRequests(prev => prev.filter(req => req.email !== email));
+            toast.success(`Accepted ${email}'s request`);
         } catch (error) {
             toast.error(error.message);
         }
     };
 
+    const handleDeclineRequest = async (email) => {
+        try {
+            await declineRequest(email);
+            setReceivedRequests(prev => prev.filter(req => req.email !== email));
+            toast.success(`Declined ${email}'s request`);
+        } catch (error) {
+            toast.error(error.message);
+        }
+    };
+
+    const handleCancelRequest = async (email) => {
+        try {
+            await cancelRequest(email);
+            setSentRequests(prev => prev.filter(req => req.email !== email));
+            toast.success('Canceled request');
+        } catch (error) {
+            toast.error(error.message);
+        }
+    };
+
+    const handleSendRequest = async (email) => {
+        try {
+            await sendRequest(email);
+            setSuggestedUsers(prev => prev.filter(user => user.email !== email));
+            setSearchResults(prev => prev.filter(user => user.email !== email));
+            toast.success('Request sent');
+        } catch (error) {
+            toast.error(error.message);
+        }
+    };
+
+    const renderRequestCard = (request, variant) => (
+        <div key={request.email || request._id} className={styles.personCard}>
+            <UserAvatar user={request} />
+            <div className={styles.personInfo}>
+                <h4>{request.fullName || 'Unnamed user'}</h4>
+                <p>{request.email}</p>
+                {variant === 'sent' && <span className={styles.statusPill}>Pending</span>}
+            </div>
+            <div className={styles.personActions}>
+                {variant === 'received' && (
+                    <>
+                        <button className={styles.primaryBtn} onClick={() => handleAcceptRequest(request.email)}>Accept</button>
+                        <button className={styles.secondaryDangerBtn} onClick={() => handleDeclineRequest(request.email)}>Decline</button>
+                    </>
+                )}
+                {variant === 'sent' && (
+                    <button className={styles.secondaryDangerBtn} onClick={() => handleCancelRequest(request.email)}>Cancel</button>
+                )}
+            </div>
+        </div>
+    );
+
+    const renderUserCard = (user) => (
+        <div key={user.email} className={styles.personCard}>
+            <UserAvatar user={user} />
+            <div className={styles.personInfo}>
+                <h4>{user.fullName || 'Unnamed user'}</h4>
+                <p>{user.email}</p>
+            </div>
+            <div className={styles.personActions}>
+                <button className={styles.primaryBtn} onClick={() => handleSendRequest(user.email)}>Add Friend</button>
+            </div>
+        </div>
+    );
+
+    const emptyCopy = useMemo(() => {
+        if (isSearchActive) {
+            return {
+                title: 'No matching users',
+                body: `No users found for "${debouncedTerm}".`
+            };
+        }
+        return {
+            title: 'No suggestions available',
+            body: 'New people will appear here when more users join.'
+        };
+    }, [debouncedTerm, isSearchActive]);
+
     return (
         <div className={styles.requestContainer}>
-            {/* Main Content */}
             <div className={styles.requestContent}>
-                <div className={styles.requestCard}>
+                <section className={styles.requestCard}>
                     {!showSearch ? (
                         <>
-                            {/* Requests Header */}
                             <div className={styles.requestHeader}>
+                                <span className={styles.eyebrow}>Network</span>
                                 <h1>Friend Requests</h1>
-                                <p>Manage your connection requests</p>
-                                <button
-                                    className={styles.searchPeopleBtn}
-                                    onClick={handleShowSearch}
-                                >
-                                    <span className={styles.searchIcon}>🔍</span>
-                                    Search for People
+                                <p>Review pending invitations and discover people to message securely.</p>
+                                <button className={styles.searchPeopleBtn} onClick={handleShowSearch}>
+                                    <span className={styles.btnIcon}>+</span>
+                                    Find people
                                 </button>
                             </div>
 
-                            {/* Tabs */}
                             <div className={styles.tabsContainer}>
                                 <button
                                     className={`${styles.tab} ${activeTab === 'received' ? styles.activeTab : ''}`}
                                     onClick={() => setActiveTab('received')}
                                 >
-                                    <span className={styles.tabIcon}>📥</span>
-                                    Received ({receivedRequests.length})
+                                    Received <span>{receivedRequests.length}</span>
                                 </button>
                                 <button
                                     className={`${styles.tab} ${activeTab === 'sent' ? styles.activeTab : ''}`}
                                     onClick={() => setActiveTab('sent')}
                                 >
-                                    <span className={styles.tabIcon}>📤</span>
-                                    Sent ({sentRequests.length})
+                                    Sent <span>{sentRequests.length}</span>
                                 </button>
                             </div>
 
-                            {/* Request Lists */}
                             <div className={styles.requestsList}>
                                 {activeTab === 'received' && (
-                                    <div className={styles.receivedRequests}>
-                                        {receivedRequests.length > 0 ? (
-                                            receivedRequests.map(request => (
-                                                <div key={request._id} className={styles.reqCard}>
-                                                    <div className={styles.requestAvatar}>
-                                                        {/* <span>{request.profilePic}</span>  */}
-                                                        <img src={request.profilePic} alt="" />
-                                                    </div>
-                                                    <div className={styles.requestInfo}>
-                                                        <h4>{request.fullName}</h4>
-                                                        <p className={styles.requestBio}>{request.bio}</p>
-                                                        <div className={styles.requestMeta}>
-                                                            <span className={styles.mutualFriends}>
-                                                                {request.email}
-                                                            </span>
-                                                            <span className={styles.requestTime}>{request.time}</span>
-                                                        </div>
-                                                    </div>
-                                                    <div className={styles.requestActions}>
-                                                        <button
-                                                            className={styles.acceptBtn}
-                                                            onClick={() => handleAcceptRequest(request.email)}
-                                                        >
-                                                            Accept
-                                                        </button>
-                                                        <button
-                                                            className={styles.declineBtn}
-                                                            onClick={() => handleDeclineRequest(request.email)}
-                                                        >
-                                                            Decline
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <div className={styles.emptyState}>
-                                                <span className={styles.emptyIcon}>📭</span>
-                                                <h3>No pending requests</h3>
-                                                <p>You don't have any friend requests at the moment</p>
-                                            </div>
-                                        )}
-                                    </div>
+                                    receivedRequests.length > 0
+                                        ? receivedRequests.map(request => renderRequestCard(request, 'received'))
+                                        : <div className={styles.emptyState}><h3>No pending requests</h3><p>You are all caught up.</p></div>
                                 )}
-
                                 {activeTab === 'sent' && (
-                                    <div className={styles.sentRequests}>
-                                        {sentRequests.length > 0 ? (
-                                            sentRequests.map(request => (
-                                                <div key={request.email} className={styles.reqCard}>
-                                                    <div className={styles.requestAvatar}>
-                                                        {/* <span>{request.avatar}</span> */}
-                                                        <img src={request.profilePic} alt="" />
-                                                    </div>
-                                                    <div className={styles.requestInfo}>
-                                                        <h4>{request.fullName}</h4>
-                                                        <p className={styles.requestBio}>{request.email}</p>
-                                                        <div className={styles.requestMeta}>
-                                                            <span className={styles.requestStatus}>Pending</span>
-                                                            <span className={styles.requestTime}>{request.time}</span>
-                                                        </div>
-                                                    </div>
-                                                    <div className={styles.requestActions}>
-                                                        <button
-                                                            className={styles.cancelBtn}
-                                                            onClick={() => handleCancelRequest(request.email)}
-                                                        >
-                                                            Cancel Request
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <div className={styles.emptyState}>
-                                                <span className={styles.emptyIcon}>📤</span>
-                                                <h3>No sent requests</h3>
-                                                <p>You haven't sent any friend requests yet</p>
-                                            </div>
-                                        )}
-                                    </div>
+                                    sentRequests.length > 0
+                                        ? sentRequests.map(request => renderRequestCard(request, 'sent'))
+                                        : <div className={styles.emptyState}><h3>No sent requests</h3><p>People you invite will appear here.</p></div>
                                 )}
                             </div>
                         </>
                     ) : (
                         <>
-                            {/* Search Header */}
                             <div className={styles.searchHeader}>
-                                <button
-                                    className={styles.backBtn}
-                                    onClick={handleBackToRequests}
-                                >
-                                    ← Back to Requests
+                                <button className={styles.backBtn} onClick={handleBackToRequests}>
+                                    <span aria-hidden="true">←</span>
+                                    Back to requests
                                 </button>
+                                <span className={styles.eyebrow}>Discover</span>
                                 <h1>Find People</h1>
-                                <p>Discover and connect with new people</p>
+                                <p>Search users by exact name or email, or start with suggested people.</p>
                             </div>
 
-                            {/* Search Bar */}
                             <div className={styles.searchSection}>
                                 <div className={styles.searchBar}>
-                                    <span className={styles.searchIcon}>🔍</span>
+                                    <span className={styles.searchGlyph} aria-hidden="true"></span>
                                     <input
                                         type="text"
-                                        placeholder="Search by name or profession..."
+                                        placeholder="Search by name or email"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         className={styles.searchInput}
@@ -257,58 +283,39 @@ const Request = () => {
                                         <button
                                             className={styles.clearSearch}
                                             onClick={() => setSearchQuery('')}
+                                            aria-label="Clear search"
                                         >
-                                            ✕
+                                            ×
                                         </button>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Search Results */}
+                            <div className={styles.resultsHeader}>
+                                <h2>{isSearchActive ? 'Search results' : 'Suggested people'}</h2>
+                                <span>{peopleToShow.length} users</span>
+                            </div>
+
                             <div className={styles.searchResults}>
-                                {isSearching ? (
+                                {(isSearching || isLoadingSuggestions) ? (
                                     <div className={styles.loadingState}>
                                         <div className={styles.spinner}></div>
-                                        <p>Searching...</p>
+                                        <p>{isSearchActive ? 'Searching...' : 'Loading suggestions...'}</p>
                                     </div>
-                                ) : searchResults.length > 0 ? (
+                                ) : peopleToShow.length > 0 ? (
                                     <div className={styles.usersList}>
-                                        {searchResults.map(user => (
-                                            <div key={user.email} className={styles.uCard}>
-                                                <div className={styles.userAvatar}>
-                                                    <span>{user.avatar}</span> 
-                                                    {/* To be changed to use img with user.profilePic */}
-                                                </div>
-                                                <div className={styles.userInfo}>
-                                                    <h4>{user.fullName}</h4>
-                                                    <p className={styles.userBio}>{user.bio}</p>
-                                                    <span className={styles.mutualFriends}>
-                                                        {user.email} 
-                                                    </span>
-                                                </div>
-                                                <div className={styles.userActions}>
-                                                   
-                                                        <button
-                                                            className={styles.sendRequestBtn}
-                                                            onClick={() => handleSendRequest(user.email)}
-                                                        >
-                                                            Add Friend
-                                                        </button>
-                                                   
-                                                </div>
-                                            </div>
-                                        ))}
+                                        {peopleToShow.map(renderUserCard)}
                                     </div>
                                 ) : (
-                                    <div className={styles.noResults}>
-                                        <span className={styles.noResultsIcon}>🔍</span>
-                                        <p>No users found{searchQuery && ` matching "${searchQuery}"`}</p>
+                                    <div className={styles.emptyState}>
+                                        <h3>{emptyCopy.title}</h3>
+                                        <p>{emptyCopy.body}</p>
                                     </div>
                                 )}
                             </div>
                         </>
                     )}
-                </div>
+                </section>
             </div>
         </div>
     );

@@ -13,6 +13,7 @@ const Profile = () => {
   const [reFetch, setReFetch] = useState(false);
 
   useEffect(() => {
+    document.title = 'Profile | CipherChat';
     async function loadData() {
       try {
         let data = await fetchProfile();

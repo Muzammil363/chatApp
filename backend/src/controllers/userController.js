@@ -119,6 +119,36 @@ export const fetchFor = async (req, res) => {
     }
 };
 
+export const suggestUsers = async (req, res) => {
+    const loggedIn = req.user;
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 10, 1), 20);
+
+    try {
+        const [contacts, sentRequests, receivedRequests] = await Promise.all([
+            Contacts.find({ user: loggedIn }).select("contact"),
+            Request.find({ sentBy: loggedIn }).select("user"),
+            Request.find({ user: loggedIn }).select("sentBy")
+        ]);
+
+        const excludedEmails = new Set([
+            loggedIn,
+            ...contacts.map(contact => contact.contact),
+            ...sentRequests.map(request => request.user),
+            ...receivedRequests.map(request => request.sentBy)
+        ]);
+
+        const users = await User.find({ email: { $nin: [...excludedEmails] } })
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .select("email fullName profilePic");
+
+        return res.status(200).json({ users });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: "Server side error while fetching suggestions" });
+    }
+};
+
 export const fetchRequests = async (req, res) => {
     const loggedIn = req.user;
     try {

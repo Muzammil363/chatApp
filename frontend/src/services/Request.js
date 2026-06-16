@@ -18,6 +18,11 @@ export const findUser = async (query) => {
     return data.result;
 };
 
+export const suggestUsers = async (limit = 10) => {
+    const data = await apiRequest(`/user/suggestions?limit=${encodeURIComponent(limit)}`);
+    return data.users;
+};
+
 export const acceptUser = async (email) => {
     await apiRequest(`/user/acceptRequest/${encodeURIComponent(email)}`, {
         method: "POST"

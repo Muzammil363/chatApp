@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import styles from '../styles/Home.module.css';
 import toast from 'react-hot-toast';
 import { useSocketConnection } from '../hooks/useSocketConnection.js';
-import { deriveSharedSecret, encryptWithAES, decryptWithAES } from '../services/Encryption.js';
+import { deriveSharedSecret, encryptWithAES, decryptWithAES, getECDHKeyPairFromPIN } from '../services/Encryption.js';
 import { uploadImageToCloudinary } from '../services/CloudinaryUpload.js';
 import {
   clearConversationUnread,
@@ -15,6 +15,7 @@ import {
 } from '../services/User.js';
 import { clearChat, deleteContact, deleteMessage } from '../services/Delete.js';
 import { loadConversation } from '../services/Loaders.js';
+import { privateKeyActions } from '../store/index.js';
 
 const messageTime = () => new Date().toLocaleString('en-US', {
   month: 'short',
@@ -26,6 +27,7 @@ const messageTime = () => new Date().toLocaleString('en-US', {
 });
 
 const Home = () => {
+  const dispatch = useDispatch();
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [showConversation, setShowConversation] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -43,6 +45,9 @@ const Home = () => {
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [selectedGroupEmails, setSelectedGroupEmails] = useState([]);
+  const [unlockPin, setUnlockPin] = useState('');
+  const [isUnlocking, setIsUnlocking] = useState(false);
+  const [mediaPreview, setMediaPreview] = useState(null);
 
   const messageBoxRef = useRef();
   const currentConversation = useRef();
@@ -62,23 +67,29 @@ const Home = () => {
     }
   };
 
-  const senderPublicKey = (senderEmail, membersOverride = groupMembers) => {
-    const activeConversation = currentConversation.current || selectedConversation;
+  const senderPublicKey = (senderEmail, membersOverride = groupMembers, conversationOverride) => {
+    const activeConversation = conversationOverride || currentConversation.current || selectedConversation;
     if (senderEmail === currentUser?.email) return currentUser.publicKey;
     if (activeConversation?.type === 'direct') return activeConversation.publicKey;
     return membersOverride.find(member => member.email === senderEmail)?.publicKey;
   };
 
-  const decryptMessage = (serverMessage, membersOverride) => {
-    const publicKey = senderPublicKey(serverMessage.sender, membersOverride);
-    if (!publicKey || !myPrivateKey) return null;
-    const sharedSecret = deriveSharedSecret(myPrivateKey, publicKey);
-    const decryptedMessage = JSON.parse(decryptWithAES(serverMessage.message, sharedSecret));
-    return {
-      _id: serverMessage._id,
-      message: decryptedMessage,
-      sender: serverMessage.sender
-    };
+  const decryptMessage = (serverMessage, membersOverride, conversationOverride) => {
+    try {
+      const publicKey = senderPublicKey(serverMessage.sender, membersOverride, conversationOverride);
+      if (!serverMessage?.message || !publicKey || !myPrivateKey) return null;
+      const sharedSecret = deriveSharedSecret(myPrivateKey, publicKey);
+      const decryptedText = decryptWithAES(serverMessage.message, sharedSecret);
+      if (!decryptedText) return null;
+      const decryptedMessage = JSON.parse(decryptedText);
+      return {
+        _id: serverMessage._id,
+        message: decryptedMessage,
+        sender: serverMessage.sender
+      };
+    } catch (error) {
+      return null;
+    }
   };
 
   const encryptForMembers = (plainMessage, members) => {
@@ -112,13 +123,13 @@ const Home = () => {
     return members;
   };
 
-  const loadMessages = async (reset = false, membersOverride = groupMembers) => {
-    if (!currentConversation.current || isLoading || (!hasMore && !reset)) return;
+  const loadMessages = async (reset = false, membersOverride = groupMembers, conversationOverride = currentConversation.current) => {
+    if (!conversationOverride || isLoading || (!hasMore && !reset)) return;
     setIsLoading(true);
     try {
-      const data = await loadConversation(currentConversation.current.chatId, reset ? null : cursor);
+      const data = await loadConversation(conversationOverride.chatId, reset ? null : cursor);
       const decrypted = data.messages
-        .map(messageItem => decryptMessage(messageItem, membersOverride))
+        .map(messageItem => decryptMessage(messageItem, membersOverride, conversationOverride))
         .filter(Boolean)
         .reverse();
       setMessages(prev => reset ? decrypted : [...decrypted, ...prev]);
@@ -139,9 +150,11 @@ const Home = () => {
       return;
     }
 
-      const decrypted = decryptMessage(data.message);
+    const decrypted = decryptMessage(data.message);
     if (decrypted) {
       setMessages(prev => [...prev, decrypted]);
+    } else if (!myPrivateKey) {
+      toast.error('Unlock messages with your PIN to view new messages');
     }
   };
 
@@ -169,8 +182,44 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
+    document.title = 'Messages | CipherChat';
     refreshConversations();
   }, []);
+
+  useEffect(() => {
+    if (!mediaPreview) return;
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setMediaPreview(null);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [mediaPreview]);
+
+  useEffect(() => {
+    if (!myPrivateKey || !currentConversation.current || messages.length > 0) return;
+
+    const openLockedConversation = async () => {
+      try {
+        const conversation = currentConversation.current;
+        let membersForDecrypt = groupMembers;
+        if (conversation.type === 'group') {
+          const members = await getGroupMembers(conversation.chatId);
+          setGroupMembers(members);
+          membersForDecrypt = members;
+        }
+        await clearConversationUnread(conversation.chatId);
+        await loadMessages(true, membersForDecrypt, conversation);
+      } catch (error) {
+        toast.error(error.message || 'Could not open conversation');
+      }
+    };
+
+    openLockedConversation();
+  }, [myPrivateKey]);
 
   useEffect(() => {
     const msgArea = messageBoxRef.current;
@@ -182,9 +231,44 @@ const Home = () => {
     return () => msgArea.removeEventListener('scroll', handleScroll);
   }, [cursor, hasMore, isLoading]);
 
+  const unlockMessages = async (e) => {
+    e.preventDefault();
+    if (!currentUser?.publicKey) {
+      toast.error('Profile is still loading. Try again in a moment.');
+      return;
+    }
+    if (!unlockPin || unlockPin.length < 2) {
+      toast.error('Enter your secret PIN');
+      return;
+    }
+
+    setIsUnlocking(true);
+    try {
+      const keys = getECDHKeyPairFromPIN(unlockPin);
+      if (keys.publicKeyHex !== currentUser.publicKey) {
+        toast.error('Invalid PIN for this account');
+        return;
+      }
+      dispatch(privateKeyActions.setPrivateKey({ privateKey: keys.privateKey }));
+      setUnlockPin('');
+      toast.success('Messages unlocked');
+    } catch (error) {
+      toast.error('Could not unlock messages');
+    } finally {
+      setIsUnlocking(false);
+    }
+  };
+
   const handleConversationSelect = async (conversation) => {
     if (!myPrivateKey) {
-      toast.error('Enter your PIN by logging in again to decrypt messages');
+      setSelectedConversation(conversation);
+      currentConversation.current = conversation;
+      setMessages([]);
+      setCursor(null);
+      setHasMore(true);
+      setGroupMembers([]);
+      if (isMobile) setShowConversation(true);
+      toast.error('Unlock messages with your PIN first');
       return;
     }
 
@@ -204,7 +288,7 @@ const Home = () => {
         membersForDecrypt = members;
       }
       await clearConversationUnread(conversation.chatId);
-      await loadMessages(true, membersForDecrypt);
+      await loadMessages(true, membersForDecrypt, conversation);
     } catch (error) {
       toast.error(error.message || 'Could not open conversation');
     }
@@ -357,6 +441,32 @@ const Home = () => {
     return groupMembers.find(member => member.email === email)?.fullName || email;
   };
 
+  const getConversationPreview = (conversation) => {
+    const preview = conversation.lastMessage;
+    if (!preview?.message) {
+      return conversation.type === 'group'
+        ? `${conversation.memberCount || 0} members`
+        : 'No messages yet';
+    }
+
+    if (!myPrivateKey || !preview.senderPublicKey) {
+      return 'Encrypted message';
+    }
+
+    try {
+      const sharedSecret = deriveSharedSecret(myPrivateKey, preview.senderPublicKey);
+      const decryptedText = decryptWithAES(preview.message, sharedSecret);
+      if (!decryptedText) return 'Encrypted message';
+
+      const decryptedMessage = JSON.parse(decryptedText);
+      if (decryptedMessage.image) return 'Image';
+      if (decryptedMessage.text) return decryptedMessage.text;
+      return 'Message';
+    } catch (error) {
+      return 'Encrypted message';
+    }
+  };
+
   return (
     <div className={styles.homeContainer}>
       <div className={styles.chatContainer}>
@@ -416,7 +526,7 @@ const Home = () => {
                 </div>
                 <div className={styles.contactInfo}>
                   <div className={styles.contactName}>{conversation.name || conversation.fullName}</div>
-                  <div className={styles.lastMessage}>{conversation.type === 'group' ? `${conversation.memberCount} members` : conversation.lastMessage}</div>
+                  <div className={styles.lastMessage}>{getConversationPreview(conversation)}</div>
                 </div>
                 <div className={styles.contactMeta}>
                   {conversation.unread > 0 && <div className={styles.unreadBadge}>{conversation.unread}</div>}
@@ -427,7 +537,27 @@ const Home = () => {
         </div>
 
         <div className={`${styles.conversationArea} ${isMobile && !showConversation ? styles.hidden : ''}`}>
-          {selectedConversation ? (
+          {!myPrivateKey ? (
+            <div className={styles.unlockState}>
+              <div className={styles.unlockCard}>
+                <div className={styles.unlockBadge}>PIN</div>
+                <h3>Unlock messages</h3>
+                <p>Your session is active. Enter your secret PIN to rebuild the encryption key for this browser tab.</p>
+                <form className={styles.unlockForm} onSubmit={unlockMessages}>
+                  <input
+                    type="password"
+                    value={unlockPin}
+                    onChange={(e) => setUnlockPin(e.target.value)}
+                    placeholder="Secret PIN"
+                    className={styles.unlockInput}
+                  />
+                  <button type="submit" className={styles.sendBtn} disabled={isUnlocking}>
+                    {isUnlocking ? 'Unlocking...' : 'Unlock'}
+                  </button>
+                </form>
+              </div>
+            </div>
+          ) : selectedConversation ? (
             <>
               <div className={styles.conversationHeader}>
                 {isMobile && (
@@ -472,9 +602,18 @@ const Home = () => {
                       )}
                       {msg.message.text && <p>{msg.message.text}</p>}
                       {msg.message.image && (
-                        <a href={msg.message.image} target="_blank" rel="noreferrer">
+                        <button
+                          type="button"
+                          className={styles.imagePreviewBtn}
+                          onClick={() => setMediaPreview({
+                            url: msg.message.image,
+                            sender: displaySenderName(msg.sender),
+                            time: msg.message.time
+                          })}
+                          aria-label="Open image preview"
+                        >
                           <img src={msg.message.image} alt="Attachment" className={styles.photo} />
-                        </a>
+                        </button>
                       )}
                       <span className={styles.messageTime}>{msg.message.time}</span>
                       {msg.sender === currentUser?.email && (
@@ -536,6 +675,30 @@ const Home = () => {
           )}
         </div>
       </div>
+
+      {mediaPreview && (
+        <div className={styles.mediaOverlay} onClick={() => setMediaPreview(null)}>
+          <div className={styles.mediaDialog} onClick={(event) => event.stopPropagation()}>
+            <div className={styles.mediaHeader}>
+              <div>
+                <h3>{mediaPreview.sender}</h3>
+                <p>{mediaPreview.time}</p>
+              </div>
+              <button
+                type="button"
+                className={styles.mediaCloseBtn}
+                onClick={() => setMediaPreview(null)}
+                aria-label="Close image preview"
+              >
+                X
+              </button>
+            </div>
+            <div className={styles.mediaBody}>
+              <img src={mediaPreview.url} alt="Full size attachment" className={styles.mediaImage} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

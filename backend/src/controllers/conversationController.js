@@ -5,13 +5,40 @@ import { Messages } from "../models/Messages.js";
 import { User } from "../models/User.js";
 import { assertConversationMember, generateChatId, saveConversationMessage, toClientMessage } from "../utils/chat.js";
 
+const buildLastMessagePreview = async (chatId, currentUser) => {
+    const latestMessage = await Messages.findOne({ chatId }).sort({ _id: -1 });
+    if (!latestMessage) return null;
+
+    const sender = await User.findOne({ email: latestMessage.sender }).select("publicKey");
+    const clientMessage = toClientMessage(latestMessage, currentUser);
+
+    return {
+        sender: clientMessage.sender,
+        message: clientMessage.message,
+        createdAt: clientMessage.createdAt,
+        senderPublicKey: sender?.publicKey || null
+    };
+};
+
 const buildDirectConversation = async (currentUser, contactDoc) => {
     const contact = await User.findOne({ email: contactDoc.contact })
         .select("email fullName profilePic status lastSeen publicKey");
     if (!contact) return null;
 
-    const chat = await Chat.findOne({ chatId: contactDoc.chatId });
+    let chat = await Chat.findOne({ chatId: contactDoc.chatId });
+    if (!chat) {
+        chat = await Chat.create({
+            chatId: contactDoc.chatId,
+            type: "direct",
+            members: [currentUser, contactDoc.contact],
+            unreadCounts: [
+                { user: currentUser, count: 0 },
+                { user: contactDoc.contact, count: 0 }
+            ]
+        });
+    }
     const unread = chat?.unreadCounts?.find(entry => entry.user === currentUser)?.count || 0;
+    const lastMessage = await buildLastMessagePreview(chat.chatId, currentUser);
 
     return {
         type: "direct",
@@ -24,8 +51,8 @@ const buildDirectConversation = async (currentUser, contactDoc) => {
         online: contact.status === "online",
         lastSeen: contact.lastSeen,
         members: [currentUser, contact.email],
-        lastMessage: chat?.lastMessage?.message || null,
-        createdAt: chat?.createdAt || null,
+        lastMessage,
+        createdAt: lastMessage?.createdAt || chat?.createdAt || null,
         unread
     };
 };
@@ -44,17 +71,22 @@ export const getConversations = async (req, res) => {
             leftMembers: { $ne: currentUser }
         });
 
-        const groups = groupChats.map(group => ({
-            type: "group",
-            chatId: group.chatId,
-            name: group.name,
-            fullName: group.name,
-            profilePic: "",
-            members: group.members.filter(member => !group.leftMembers.includes(member)),
-            memberCount: group.members.filter(member => !group.leftMembers.includes(member)).length,
-            lastMessage: group.lastMessage?.message || null,
-            createdAt: group.createdAt || null,
-            unread: group.unreadCounts?.find(entry => entry.user === currentUser)?.count || 0
+        const groups = await Promise.all(groupChats.map(async group => {
+            const activeMembers = group.members.filter(member => !group.leftMembers.includes(member));
+            const lastMessage = await buildLastMessagePreview(group.chatId, currentUser);
+
+            return {
+                type: "group",
+                chatId: group.chatId,
+                name: group.name,
+                fullName: group.name,
+                profilePic: "",
+                members: activeMembers,
+                memberCount: activeMembers.length,
+                lastMessage,
+                createdAt: lastMessage?.createdAt || group.createdAt || null,
+                unread: group.unreadCounts?.find(entry => entry.user === currentUser)?.count || 0
+            };
         }));
 
         const conversations = [...directConversations, ...groups].sort((a, b) => {
@@ -144,7 +176,13 @@ export const leaveGroup = async (req, res) => {
 export const getConversationMessages = async (req, res) => {
     try {
         const { cursor, limit = 20 } = req.query;
-        const conversation = await Chat.findOne({ chatId: req.params.id });
+        let conversation = await Chat.findOne({ chatId: req.params.id });
+        if (!conversation) {
+            const directContact = await Contacts.findOne({ user: req.user, chatId: req.params.id });
+            if (directContact) {
+                conversation = await ensureDirectConversation(req.user, directContact.contact);
+            }
+        }
         if (!assertConversationMember(conversation, req.user)) {
             return res.status(404).json({ message: "Conversation not found" });
         }

@@ -4,7 +4,8 @@ import { profile,updateProfile,
     getContacts,fetchFor,
     sendRequest, fetchRequests , acceptRequest,deleteRequest,
     cancelRequest,
-    deleteContact
+    deleteContact,
+    suggestUsers
 } from '../controllers/userController.js';
 
 
@@ -16,6 +17,7 @@ router.patch('/updateProfile',authMiddleware,updateProfile);
 
 router.get('/contacts',authMiddleware,getContacts);
 router.delete('/contact/:id',authMiddleware,deleteContact);
+router.get('/suggestions',authMiddleware,suggestUsers);
 router.get('/find/:id',authMiddleware,fetchFor);
 
 router.get('/fetchRequests',authMiddleware,fetchRequests);

@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Navigate, Outlet } from 'react-router-dom';
-import { authActions } from '../store';
+import { authActions, privateKeyActions } from '../store';
 import { apiRequest } from '../services/api';
 
 function ProtectedRoute() {
@@ -15,7 +15,10 @@ function ProtectedRoute() {
         const data = await apiRequest('/api/auth/validate');
         if (active) dispatch(authActions.login({ user: data.user }));
       } catch (error) {
-        if (active) dispatch(authActions.logout());
+        if (active) {
+          dispatch(authActions.logout());
+          dispatch(privateKeyActions.clearPrivateKey());
+        }
       }
     }
     validate();
