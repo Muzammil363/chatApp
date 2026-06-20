@@ -24,10 +24,10 @@ export const suggestUsers = async (limit = 10) => {
 };
 
 export const acceptUser = async (email) => {
-    await apiRequest(`/user/acceptRequest/${encodeURIComponent(email)}`, {
+    const data = await apiRequest(`/user/acceptRequest/${encodeURIComponent(email)}`, {
         method: "POST"
     });
-    return true;
+    return data.contact;
 };
 
 export const declineRequest = async (email) => {

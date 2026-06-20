@@ -5,7 +5,8 @@ import { Request } from '../models/Requests.js';
 import { generateChatId } from '../utils/chat.js'
 import { Chat } from '../models/ChatData.js';
 import moment from "moment"
-import { Messages } from '../models/Messages.js';
+import { PendingMessage } from '../models/PendingMessage.js';
+import { SeenReceipt } from '../models/SeenReceipt.js';
 import { ensureDirectConversation } from './conversationController.js';
 
 export const profile = async (req, res) => {
@@ -225,14 +226,25 @@ export const acceptRequest = async (req, res) => {
         }
 
         const chatId = generateChatId(loggedIn, acceptFor);
-        await Promise.all([
+        const [, , conversation] = await Promise.all([
             Contacts.create({ user: loggedIn, contact: acceptFor, chatId }),
             Contacts.create({ user: acceptFor, contact: loggedIn, chatId }),
             ensureDirectConversation(loggedIn, acceptFor),
         ]);
 
         await Request.deleteOne({ user: loggedIn, sentBy: acceptFor });
-        return res.status(200).json({ message: "Accepted request successfully" });
+        return res.status(200).json({
+            message: "Accepted request successfully",
+            contact: {
+                email: acceptForUser.email,
+                fullName: acceptForUser.fullName,
+                profilePic: acceptForUser.profilePic,
+                publicKey: acceptForUser.publicKey,
+                chatId: conversation.chatId,
+                type: "direct",
+                members: [loggedIn, acceptForUser.email]
+            }
+        });
     } catch (error) {
         console.error(error);
         return res.status(500).json({ message: "Server side error while accepting request" })
@@ -275,18 +287,19 @@ export const deleteContact = async (req, res) => {
     try {
         const loggedIn = req.user;
         const toDelete = req.params.id;
-        const chatId=generateChatId(loggedIn,toDelete);
-    let del = await Contacts.deleteMany({
-        $or: [
-            { user: loggedIn, contact: toDelete },
-            { user: toDelete, contact: loggedIn }
-        ]
-    });
-    await Chat.deleteOne({chatId:chatId});
-    await Messages.deleteMany({chatId:chatId});
-    return res.status(200).json({message:"deleted succesfully"});
+        const chatId = generateChatId(loggedIn, toDelete);
+        await Contacts.deleteMany({
+            $or: [
+                { user: loggedIn, contact: toDelete },
+                { user: toDelete, contact: loggedIn }
+            ]
+        });
+        await Chat.deleteOne({ chatId });
+        await PendingMessage.deleteMany({ chatId });
+        await SeenReceipt.deleteMany({ chatId });
+        return res.status(200).json({ message: "deleted succesfully" });
     } catch (error) {
         console.error(error);
-        return res.status(500).json({message:"server side error while deleting"});
+        return res.status(500).json({ message: "server side error while deleting" });
     }
 }

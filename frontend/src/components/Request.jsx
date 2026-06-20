@@ -10,6 +10,7 @@ import {
     suggestUsers
 } from '../services/Request';
 import toast from 'react-hot-toast';
+import { saveLocalContact, upsertLocalConversation } from '../services/localDb';
 
 const initialsFor = (name = '', email = '') => {
     const source = name || email;
@@ -125,7 +126,17 @@ const Request = () => {
 
     const handleAcceptRequest = async (email) => {
         try {
-            await acceptUser(email);
+            const contact = await acceptUser(email);
+            if (contact) {
+                await saveLocalContact(contact);
+                await upsertLocalConversation({
+                    chatId: contact.chatId,
+                    type: contact.type || 'direct',
+                    name: contact.fullName,
+                    members: contact.members,
+                    updatedAt: Date.now()
+                });
+            }
             setReceivedRequests(prev => prev.filter(req => req.email !== email));
             toast.success(`Accepted ${email}'s request`);
         } catch (error) {

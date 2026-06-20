@@ -6,16 +6,33 @@ import { useSocketConnection } from '../hooks/useSocketConnection.js';
 import { deriveSharedSecret, encryptWithAES, decryptWithAES, getECDHKeyPairFromPIN } from '../services/Encryption.js';
 import { uploadImageToCloudinary } from '../services/CloudinaryUpload.js';
 import {
-  clearConversationUnread,
   createGroup,
   getContacts,
   getConversations,
   getGroupMembers,
   leaveGroup
 } from '../services/User.js';
-import { clearChat, deleteContact, deleteMessage } from '../services/Delete.js';
-import { loadConversation } from '../services/Loaders.js';
+import { deleteContact } from '../services/Delete.js';
 import { privateKeyActions } from '../store/index.js';
+import {
+  clearAllLocalMessages,
+  clearLocalUnread,
+  deleteLocalContact,
+  deleteLocalConversation,
+  deleteLocalMessage,
+  getLocalConversations,
+  getLocalMessage,
+  getLocalMessages,
+  getLocalStorageStats,
+  incrementLocalUnread,
+  markLocalConversationMessagesSeen,
+  resetLocalChatData,
+  saveLocalContacts,
+  saveLocalMessage,
+  updateLocalMessageStatus,
+  upsertLocalConversation,
+  upsertLocalConversations
+} from '../services/localDb.js';
 
 const messageTime = () => new Date().toLocaleString('en-US', {
   month: 'short',
@@ -48,6 +65,10 @@ const Home = () => {
   const [unlockPin, setUnlockPin] = useState('');
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [mediaPreview, setMediaPreview] = useState(null);
+  const [activeMessageMenu, setActiveMessageMenu] = useState(null);
+  const [showStorageSettings, setShowStorageSettings] = useState(false);
+  const [storageStats, setStorageStats] = useState(null);
+  const [isLoadingStorage, setIsLoadingStorage] = useState(false);
 
   const messageBoxRef = useRef();
   const currentConversation = useRef();
@@ -60,7 +81,28 @@ const Home = () => {
   const refreshConversations = async () => {
     try {
       const [conversationData, contactData] = await Promise.all([getConversations(), getContacts()]);
-      setConversations(conversationData);
+      await saveLocalContacts(contactData);
+      await upsertLocalConversations(conversationData.map(conversation => ({
+        chatId: conversation.chatId,
+        type: conversation.type,
+        name: conversation.name || conversation.fullName,
+        members: conversation.members,
+        memberCount: conversation.memberCount,
+        updatedAt: conversation.createdAt
+      })));
+      const localConversations = await getLocalConversations();
+      const localByChatId = new Map(localConversations.map(conversation => [conversation.chatId, conversation]));
+      const mergedConversations = await Promise.all(conversationData.map(async conversation => {
+        const localConversation = localByChatId.get(conversation.chatId);
+        const localLastMessage = await getLocalMessage(localConversation?.lastMessageId);
+        return {
+          ...conversation,
+          unread: localConversation?.unreadCount || 0,
+          localUpdatedAt: localConversation?.updatedAt || conversation.createdAt || 0,
+          localLastMessage
+        };
+      }));
+      setConversations(mergedConversations.sort((a, b) => Number(b.localUpdatedAt || 0) - Number(a.localUpdatedAt || 0)));
       setContacts(contactData);
     } catch (error) {
       toast.error(error.message || 'Error while fetching conversations');
@@ -71,19 +113,27 @@ const Home = () => {
     const activeConversation = conversationOverride || currentConversation.current || selectedConversation;
     if (senderEmail === currentUser?.email) return currentUser.publicKey;
     if (activeConversation?.type === 'direct') return activeConversation.publicKey;
-    return membersOverride.find(member => member.email === senderEmail)?.publicKey;
+    return membersOverride.find(member => member.email === senderEmail)?.publicKey
+      || contacts.find(contact => contact.email === senderEmail)?.publicKey;
   };
 
   const decryptMessage = (serverMessage, membersOverride, conversationOverride) => {
     try {
-      const publicKey = senderPublicKey(serverMessage.sender, membersOverride, conversationOverride);
-      if (!serverMessage?.message || !publicKey || !myPrivateKey) return null;
+      const publicKey = serverMessage?.senderPublicKey || senderPublicKey(serverMessage.sender, membersOverride, conversationOverride);
+      const encryptedPayload = serverMessage?.encryptedPayload || serverMessage?.message;
+      if (!encryptedPayload || !publicKey || !myPrivateKey) return null;
       const sharedSecret = deriveSharedSecret(myPrivateKey, publicKey);
-      const decryptedText = decryptWithAES(serverMessage.message, sharedSecret);
+      const decryptedText = decryptWithAES(encryptedPayload, sharedSecret);
       if (!decryptedText) return null;
       const decryptedMessage = JSON.parse(decryptedText);
       return {
-        _id: serverMessage._id,
+        _id: serverMessage._id || serverMessage.localId || serverMessage.serverId || serverMessage.clientMessageId,
+        localId: serverMessage.localId || serverMessage._id || serverMessage.serverId || serverMessage.clientMessageId,
+        serverId: serverMessage.serverId,
+        clientMessageId: serverMessage.clientMessageId,
+        status: serverMessage.status,
+        deliveredTo: serverMessage.deliveredTo || [],
+        seenBy: serverMessage.seenBy || [],
         message: decryptedMessage,
         sender: serverMessage.sender
       };
@@ -127,7 +177,7 @@ const Home = () => {
     if (!conversationOverride || isLoading || (!hasMore && !reset)) return;
     setIsLoading(true);
     try {
-      const data = await loadConversation(conversationOverride.chatId, reset ? null : cursor);
+      const data = await getLocalMessages(conversationOverride.chatId, reset ? null : cursor, 20);
       const decrypted = data.messages
         .map(messageItem => decryptMessage(messageItem, membersOverride, conversationOverride))
         .filter(Boolean)
@@ -142,19 +192,51 @@ const Home = () => {
     }
   };
 
-  const handleReceive = (data) => {
+  const handleReceive = async (data) => {
     const activeConversation = currentConversation.current;
     const receivedChatId = data.chatId || data.conversationId;
-    if (!activeConversation || activeConversation.chatId !== receivedChatId) {
-      refreshConversations();
+    const incoming = data.message || {};
+    const encryptedPayload = incoming.encryptedPayload || incoming.message;
+
+    if (!receivedChatId || !encryptedPayload) {
       return;
     }
 
-    const decrypted = decryptMessage(data.message);
-    if (decrypted) {
-      setMessages(prev => [...prev, decrypted]);
-    } else if (!myPrivateKey) {
-      toast.error('Unlock messages with your PIN to view new messages');
+    try {
+      const saved = await saveLocalMessage({
+        localId: incoming.serverId || incoming._id,
+        serverId: incoming.serverId || incoming._id,
+        clientMessageId: incoming.clientMessageId,
+        chatId: receivedChatId,
+        sender: incoming.sender || data.fromMail,
+        senderPublicKey: incoming.senderPublicKey,
+        encryptedPayload,
+        createdAt: incoming.createdAt || Date.now(),
+        status: 'delivered'
+      });
+
+      if (saved?.serverId) {
+        socket?.emit('message:saved', { serverId: saved.serverId, chatId: receivedChatId });
+      }
+
+      const isActiveUnlocked = activeConversation?.chatId === receivedChatId && myPrivateKey;
+      if (isActiveUnlocked) {
+        const decrypted = decryptMessage(saved);
+        if (decrypted) {
+          setMessages(prev => {
+            if (prev.some(messageItem => String(messageItem.localId) === String(decrypted.localId))) return prev;
+            return [...prev, decrypted];
+          });
+          await clearLocalUnread(receivedChatId);
+          await emitSeenReceipts(receivedChatId);
+        }
+      } else {
+        await incrementLocalUnread(receivedChatId);
+      }
+
+      await refreshConversations();
+    } catch (error) {
+      toast.error(error.message || 'Could not save incoming message');
     }
   };
 
@@ -172,7 +254,143 @@ const Home = () => {
     toast('Message deleted by sender');
   };
 
-  useSocketConnection(handleStopTyping, handleTypingReceive, handleReceive, setSocket, handleDeletedMessage);
+  const formatBytes = (bytes = 0) => {
+    if (!bytes) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    return `${(bytes / (1024 ** index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+  };
+
+  const loadStorageStats = async () => {
+    setIsLoadingStorage(true);
+    try {
+      const [localStats, browserStats] = await Promise.all([
+        getLocalStorageStats(),
+        navigator.storage?.estimate ? navigator.storage.estimate() : Promise.resolve(null)
+      ]);
+      setStorageStats({
+        ...localStats,
+        browserUsage: browserStats?.usage || null,
+        browserQuota: browserStats?.quota || null
+      });
+    } catch (error) {
+      toast.error(error.message || 'Could not load storage details');
+    } finally {
+      setIsLoadingStorage(false);
+    }
+  };
+
+  const openStorageSettings = async () => {
+    setShowStorageSettings(true);
+    await loadStorageStats();
+  };
+
+  const emitSeenReceipts = async (chatId) => {
+    if (!socket || !chatId || !currentUser?.email) return;
+    const seenMessages = await markLocalConversationMessagesSeen(chatId, currentUser.email);
+    const messagesToSend = seenMessages.filter(item => item.sender && (item.serverId || item.clientMessageId));
+    if (messagesToSend.length > 0) {
+      socket.emit('message:seen', { chatId, messages: messagesToSend });
+    }
+  };
+
+  const handleMessageAccepted = async ({ clientMessageId, serverId } = {}) => {
+    const updated = await updateLocalMessageStatus({
+      clientMessageId,
+      serverId,
+      status: 'accepted'
+    });
+    if (updated) {
+      setMessages(prev => prev.map(item => (
+        String(item.clientMessageId || item.message?.id) === String(clientMessageId)
+          ? { ...item, serverId, status: 'accepted' }
+          : item
+      )));
+      await refreshConversations();
+    }
+  };
+
+  const handleMessageDelivered = async ({ serverId, clientMessageId, deliveredTo, allDelivered } = {}) => {
+    const updated = await updateLocalMessageStatus({
+      serverId,
+      clientMessageId,
+      status: allDelivered ? 'delivered' : 'partial',
+      deliveredTo
+    });
+    if (updated) {
+      setMessages(prev => prev.map(item => (
+        String(item.serverId || item.clientMessageId || item.message?.id) === String(serverId || clientMessageId)
+          ? {
+            ...item,
+            serverId: serverId || item.serverId,
+            status: allDelivered ? 'delivered' : 'partial',
+            deliveredTo: [...new Set([...(item.deliveredTo || []), deliveredTo].filter(Boolean))]
+          }
+          : item
+      )));
+      await refreshConversations();
+    }
+  };
+
+  const shouldMarkMessageSeen = (messageItem, seenBy = [], allSeen = false) => {
+    if (allSeen) return true;
+    const deliveredTo = messageItem.deliveredTo || [];
+    if (deliveredTo.length === 0) return false;
+    return deliveredTo.every(email => seenBy.includes(email));
+  };
+
+  const handleMessageSeen = async ({ serverId, clientMessageId, seenBy = [], allSeen = false } = {}) => {
+    const updated = await updateLocalMessageStatus({
+      serverId,
+      clientMessageId,
+      seenBy
+    });
+    if (!updated) return;
+
+    const nextStatus = shouldMarkMessageSeen(updated, updated.seenBy || [], allSeen)
+      ? 'seen'
+      : updated.status;
+
+    const finalMessage = nextStatus === updated.status
+      ? updated
+      : await updateLocalMessageStatus({
+        localId: updated.localId,
+        status: nextStatus
+      });
+
+    setMessages(prev => prev.map(item => {
+      const sameMessage = String(item.serverId || item.clientMessageId || item.message?.id)
+        === String(serverId || clientMessageId);
+      if (!sameMessage) return item;
+
+      const mergedSeenBy = [...new Set([...(item.seenBy || []), ...(seenBy || [])])];
+      const status = shouldMarkMessageSeen(
+        { ...item, deliveredTo: item.deliveredTo || finalMessage?.deliveredTo || [] },
+        mergedSeenBy,
+        allSeen
+      )
+        ? 'seen'
+        : item.status;
+
+      return {
+        ...item,
+        seenBy: mergedSeenBy,
+        status
+      };
+    }));
+    await refreshConversations();
+  };
+
+  useSocketConnection(
+    handleStopTyping,
+    handleTypingReceive,
+    handleReceive,
+    setSocket,
+    handleDeletedMessage,
+    handleMessageAccepted,
+    handleMessageDelivered,
+    handleMessageSeen
+  );
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -185,6 +403,11 @@ const Home = () => {
     document.title = 'Messages | CipherChat';
     refreshConversations();
   }, []);
+
+  useEffect(() => {
+    if (!socket || !selectedConversation?.chatId || !myPrivateKey) return;
+    emitSeenReceipts(selectedConversation.chatId);
+  }, [socket, selectedConversation?.chatId, myPrivateKey]);
 
   useEffect(() => {
     if (!mediaPreview) return;
@@ -211,8 +434,10 @@ const Home = () => {
           setGroupMembers(members);
           membersForDecrypt = members;
         }
-        await clearConversationUnread(conversation.chatId);
+        await clearLocalUnread(conversation.chatId);
         await loadMessages(true, membersForDecrypt, conversation);
+        await emitSeenReceipts(conversation.chatId);
+        await refreshConversations();
       } catch (error) {
         toast.error(error.message || 'Could not open conversation');
       }
@@ -287,8 +512,10 @@ const Home = () => {
         setGroupMembers(members);
         membersForDecrypt = members;
       }
-      await clearConversationUnread(conversation.chatId);
+      await clearLocalUnread(conversation.chatId);
       await loadMessages(true, membersForDecrypt, conversation);
+      await emitSeenReceipts(conversation.chatId);
+      await refreshConversations();
     } catch (error) {
       toast.error(error.message || 'Could not open conversation');
     }
@@ -304,17 +531,43 @@ const Home = () => {
     if (!selectedConversation || !socket) return;
     const members = await activeMembersForSelected();
     const encryptedFor = encryptForMembers(plainMessage, members);
+    const clientMessageId = String(plainMessage.id);
+    const selfPayload = encryptedFor.find(entry => entry.userEmail === currentUser.email);
+    if (!selfPayload?.ciphertext) {
+      throw new Error('Could not encrypt message for this device');
+    }
+    const saved = await saveLocalMessage({
+      localId: clientMessageId,
+      clientMessageId,
+      chatId: selectedConversation.chatId,
+      sender: currentUser.email,
+      senderPublicKey: currentUser.publicKey,
+      encryptedPayload: selfPayload?.ciphertext,
+      createdAt: plainMessage.id,
+      status: 'sending',
+      seenBy: []
+    });
 
     socket.emit('message:send', {
       conversationId: selectedConversation.chatId,
       chatId: selectedConversation.chatId,
       encryptedFor,
+      clientMessageId,
       time: plainMessage.id
     });
 
-    setMessages(prev => [...prev, { message: plainMessage, sender: currentUser.email }]);
+    setMessages(prev => [...prev, {
+      _id: saved?.localId || clientMessageId,
+      localId: saved?.localId || clientMessageId,
+      clientMessageId,
+      message: plainMessage,
+      sender: currentUser.email,
+      status: 'sending',
+      deliveredTo: [],
+      seenBy: []
+    }]);
     setMessage('');
-    refreshConversations();
+    await refreshConversations();
   };
 
   const handleSendMessage = async (e) => {
@@ -355,9 +608,11 @@ const Home = () => {
 
   const handleContactDelete = async () => {
     if (!selectedConversation || selectedConversation.type !== 'direct') return;
-    if (!confirm('Delete this contact and chat permanently?')) return;
+    if (!confirm('Delete this contact? This also removes this chat history from this browser.')) return;
     try {
       await deleteContact(selectedConversation.email);
+      await deleteLocalContact(selectedConversation.email);
+      await deleteLocalConversation(selectedConversation.chatId);
       setSelectedConversation(null);
       currentConversation.current = null;
       setMessages([]);
@@ -369,15 +624,63 @@ const Home = () => {
   };
 
   const handleClearChat = async () => {
-    if (!selectedConversation || selectedConversation.type !== 'direct') return;
-    if (!confirm('Clear this chat permanently for both users?')) return;
+    if (!selectedConversation) return;
+    if (!confirm('Clear this chat from this browser?')) return;
     try {
-      await clearChat(selectedConversation.email);
+      await deleteLocalConversation(selectedConversation.chatId);
+      await upsertLocalConversation({
+        chatId: selectedConversation.chatId,
+        type: selectedConversation.type,
+        name: selectedConversation.name || selectedConversation.fullName,
+        members: selectedConversation.members,
+        memberCount: selectedConversation.memberCount,
+        updatedAt: Date.now()
+      });
       setMessages([]);
-      toast.success('Chat cleared');
+      await refreshConversations();
+      toast.success('Chat cleared from this browser');
     } catch (error) {
       toast.error(error.message || 'Cannot clear chat');
     }
+  };
+
+  const handleClearAllLocalMessages = async () => {
+    if (!confirm('Clear all local messages from this browser? Contacts will stay available.')) return;
+    try {
+      await clearAllLocalMessages();
+      setMessages([]);
+      setCursor(null);
+      setHasMore(false);
+      await refreshConversations();
+      await loadStorageStats();
+      toast.success('All local messages cleared');
+    } catch (error) {
+      toast.error(error.message || 'Cannot clear local messages');
+    }
+  };
+
+  const handleResetLocalChatData = async () => {
+    if (!confirm('Reset all local chat data in this browser? Server-backed contacts will be restored after refresh.')) return;
+    try {
+      await resetLocalChatData();
+      setMessages([]);
+      setSelectedConversation(null);
+      currentConversation.current = null;
+      setCursor(null);
+      setHasMore(true);
+      setGroupMembers([]);
+      await refreshConversations();
+      await loadStorageStats();
+      toast.success('Local chat data reset');
+    } catch (error) {
+      toast.error(error.message || 'Cannot reset local data');
+    }
+  };
+
+  const handleClearCurrentChatFromSettings = async () => {
+    if (!selectedConversation) return;
+    await handleClearChat();
+    await loadStorageStats();
   };
 
   const handleLeaveGroup = async () => {
@@ -396,14 +699,12 @@ const Home = () => {
   };
 
   const handleDeleteMessage = async (id) => {
-    if (!confirm('Delete message for everyone permanently?')) return;
+    if (!confirm('Delete this message from this browser?')) return;
     try {
-      await deleteMessage(id);
-      setMessages(prev => prev.filter(msg => msg.message.id !== id));
-      if (selectedConversation?.type === 'direct') {
-        socket?.emit('deleted', { id, to: selectedConversation.email });
-      }
-      toast.success('Message deleted');
+      await deleteLocalMessage(String(id));
+      setMessages(prev => prev.filter(msg => String(msg.localId || msg.message.id) !== String(id)));
+      await refreshConversations();
+      toast.success('Message deleted from this browser');
     } catch (error) {
       toast.error(error.message || 'Cannot delete message');
     }
@@ -441,21 +742,66 @@ const Home = () => {
     return groupMembers.find(member => member.email === email)?.fullName || email;
   };
 
+  const deliveryLabel = (status) => {
+    if (status === 'delivered') return '✓✓';
+    if (status === 'accepted' || status === 'partial') return '✓';
+    if (status === 'sending') return 'Sending';
+    return '';
+  };
+
+  const formatContactStatus = (conversation) => {
+    if (!conversation) return '';
+    if (conversation.type === 'group') {
+      return `${groupMembers.length || conversation.memberCount || 0} members`;
+    }
+    if (conversation.online) return 'Online';
+
+    const date = new Date(conversation.lastSeen);
+    if (Number.isNaN(date.getTime())) return 'Offline';
+
+    const now = new Date();
+    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startYesterday = startToday - 24 * 60 * 60 * 1000;
+    const time = date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    if (date.getTime() >= startToday) return `Last seen today, ${time}`;
+    if (date.getTime() >= startYesterday) return `Last seen yesterday, ${time}`;
+
+    const day = date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: '2-digit'
+    });
+    return `Last seen ${day}, ${time}`;
+  };
+
+  const deliveryText = (status) => {
+    if (status === 'seen') return 'seen';
+    if (status === 'delivered') return 'delivered';
+    if (status === 'accepted' || status === 'partial') return 'sent';
+    if (status === 'sending') return 'Sending';
+    return '';
+  };
+
   const getConversationPreview = (conversation) => {
-    const preview = conversation.lastMessage;
-    if (!preview?.message) {
+    const preview = conversation.localLastMessage;
+    if (!preview?.encryptedPayload) {
       return conversation.type === 'group'
         ? `${conversation.memberCount || 0} members`
         : 'No messages yet';
     }
 
-    if (!myPrivateKey || !preview.senderPublicKey) {
+    const publicKey = preview.senderPublicKey || senderPublicKey(preview.sender, groupMembers, conversation);
+    if (!myPrivateKey || !publicKey) {
       return 'Encrypted message';
     }
 
     try {
-      const sharedSecret = deriveSharedSecret(myPrivateKey, preview.senderPublicKey);
-      const decryptedText = decryptWithAES(preview.message, sharedSecret);
+      const sharedSecret = deriveSharedSecret(myPrivateKey, publicKey);
+      const decryptedText = decryptWithAES(preview.encryptedPayload, sharedSecret);
       if (!decryptedText) return 'Encrypted message';
 
       const decryptedMessage = JSON.parse(decryptedText);
@@ -555,6 +901,9 @@ const Home = () => {
                     {isUnlocking ? 'Unlocking...' : 'Unlock'}
                   </button>
                 </form>
+                <button type="button" className={styles.storageLinkBtn} onClick={openStorageSettings}>
+                  Storage settings
+                </button>
               </div>
             </div>
           ) : selectedConversation ? (
@@ -571,17 +920,14 @@ const Home = () => {
                 </div>
                 <div className={styles.contactDetails}>
                   <h4>{selectedConversation.name || selectedConversation.fullName}</h4>
-                  <span className={styles.status}>
-                    {selectedConversation.type === 'group'
-                      ? `${groupMembers.length || selectedConversation.memberCount} members`
-                      : selectedConversation.online ? 'Online' : selectedConversation.lastSeen}
-                  </span>
+                  <span className={styles.status}>{formatContactStatus(selectedConversation)}</span>
                 </div>
                 <div className={styles.conversationActions}>
+                  <button className={styles.actionBtn} onClick={openStorageSettings}>Settings</button>
                   {selectedConversation.type === 'direct' ? (
                     <>
                       <button className={styles.actionBtn} onClick={handleContactDelete}>Delete Contact</button>
-                      <button className={styles.actionBtn} onClick={handleClearChat}>Delete Chat</button>
+                      <button className={styles.actionBtn} onClick={handleClearChat}>Clear Chat</button>
                     </>
                   ) : (
                     <button className={styles.actionBtn} onClick={handleLeaveGroup}>Leave Group</button>
@@ -615,15 +961,35 @@ const Home = () => {
                           <img src={msg.message.image} alt="Attachment" className={styles.photo} />
                         </button>
                       )}
-                      <span className={styles.messageTime}>{msg.message.time}</span>
-                      {msg.sender === currentUser?.email && (
-                        <div
-                          style={{ cursor: 'pointer', color: 'red' }}
-                          onClick={() => handleDeleteMessage(msg.message.id)}
+                      <div className={styles.messageActions}>
+                        <button
+                          type="button"
+                          className={styles.messageMenuBtn}
+                          onClick={() => setActiveMessageMenu(prev => (
+                            prev === (msg.localId || msg.message.id) ? null : (msg.localId || msg.message.id)
+                          ))}
+                          aria-label="Message actions"
                         >
-                          Delete
-                        </div>
-                      )}
+                          ...
+                        </button>
+                        {activeMessageMenu === (msg.localId || msg.message.id) && (
+                          <div className={styles.messageMenu}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveMessageMenu(null);
+                                handleDeleteMessage(msg.localId || msg.message.id);
+                              }}
+                            >
+                              Delete from this browser
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <span className={styles.messageTime}>
+                        {msg.message.time}
+                        {msg.sender === currentUser?.email && deliveryText(msg.status) && ` - ${deliveryText(msg.status)}`}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -696,6 +1062,69 @@ const Home = () => {
             <div className={styles.mediaBody}>
               <img src={mediaPreview.url} alt="Full size attachment" className={styles.mediaImage} />
             </div>
+          </div>
+        </div>
+      )}
+
+      {showStorageSettings && (
+        <div className={styles.storageOverlay} onClick={() => setShowStorageSettings(false)}>
+          <div className={styles.storageDialog} onClick={(event) => event.stopPropagation()}>
+            <div className={styles.storageHeader}>
+              <div>
+                <h3>Storage settings</h3>
+                <p>Manage encrypted chat data stored in this browser.</p>
+              </div>
+              <button
+                type="button"
+                className={styles.storageCloseBtn}
+                onClick={() => setShowStorageSettings(false)}
+                aria-label="Close storage settings"
+              >
+                X
+              </button>
+            </div>
+
+            {isLoadingStorage ? (
+              <div className={styles.storageLoading}>Loading storage details...</div>
+            ) : (
+              <>
+                <div className={styles.storageUsage}>
+                  <div>
+                    <span>Browser usage</span>
+                    <strong>{formatBytes(storageStats?.browserUsage)}</strong>
+                    <p>Quota: {storageStats?.browserQuota ? formatBytes(storageStats.browserQuota) : 'Unavailable'}</p>
+                  </div>
+                  <div>
+                    <span>CipherChat data</span>
+                    <strong>{formatBytes(storageStats?.indexedDbBytes)}</strong>
+                    <p>Encrypted local records only</p>
+                  </div>
+                </div>
+
+                <div className={styles.storageStatsGrid}>
+                  <div><span>Messages</span><strong>{storageStats?.messages || 0}</strong></div>
+                  <div><span>Conversations</span><strong>{storageStats?.conversations || 0}</strong></div>
+                  <div><span>Contacts</span><strong>{storageStats?.contacts || 0}</strong></div>
+                </div>
+
+                <div className={styles.storageActions}>
+                  <button
+                    type="button"
+                    className={styles.actionBtn}
+                    onClick={handleClearCurrentChatFromSettings}
+                    disabled={!selectedConversation}
+                  >
+                    Clear current chat
+                  </button>
+                  <button type="button" className={styles.actionBtn} onClick={handleClearAllLocalMessages}>
+                    Clear all local messages
+                  </button>
+                  <button type="button" className={styles.dangerBtn} onClick={handleResetLocalChatData}>
+                    Reset local chat data
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

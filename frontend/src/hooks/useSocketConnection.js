@@ -7,14 +7,20 @@ export const useSocketConnection = (
   handleTypingReceive,
   handleReceive,
   setSocket,
-  handleDeletedMessage
+  handleDeletedMessage,
+  handleMessageAccepted,
+  handleMessageDelivered,
+  handleMessageSeen
 ) => {
   const handlersRef = useRef({
     handleStopTyping,
     handleTypingReceive,
     handleReceive,
     setSocket,
-    handleDeletedMessage
+    handleDeletedMessage,
+    handleMessageAccepted,
+    handleMessageDelivered,
+    handleMessageSeen
   });
 
   useEffect(() => {
@@ -23,9 +29,21 @@ export const useSocketConnection = (
       handleTypingReceive,
       handleReceive,
       setSocket,
-      handleDeletedMessage
+      handleDeletedMessage,
+      handleMessageAccepted,
+      handleMessageDelivered,
+      handleMessageSeen
     };
-  }, [handleStopTyping, handleTypingReceive, handleReceive, setSocket, handleDeletedMessage]);
+  }, [
+    handleStopTyping,
+    handleTypingReceive,
+    handleReceive,
+    setSocket,
+    handleDeletedMessage,
+    handleMessageAccepted,
+    handleMessageDelivered,
+    handleMessageSeen
+  ]);
 
   useEffect(() => {
     const socket = connectSocket();
@@ -54,6 +72,18 @@ export const useSocketConnection = (
       handlersRef.current.handleDeletedMessage(data.id);
     };
 
+    const onMessageAccepted = (data) => {
+      handlersRef.current.handleMessageAccepted?.(data);
+    };
+
+    const onMessageDelivered = (data) => {
+      handlersRef.current.handleMessageDelivered?.(data);
+    };
+
+    const onMessageSeen = (data) => {
+      handlersRef.current.handleMessageSeen?.(data);
+    };
+
     const onMessageError = (data = {}) => {
       toast.error(data.message || data.error || 'Message could not be sent');
     };
@@ -65,6 +95,9 @@ export const useSocketConnection = (
     socket.on("typing", onTyping);
     socket.on("stop-typing", onStopTyping);
     socket.on("deletedId", onDeletedId);
+    socket.on("message:accepted", onMessageAccepted);
+    socket.on("message:delivered", onMessageDelivered);
+    socket.on("message:seen:update", onMessageSeen);
     socket.on("message:error", onMessageError);
 
     if (socket.connected) {
@@ -79,6 +112,9 @@ export const useSocketConnection = (
       socket.off("typing", onTyping);
       socket.off("stop-typing", onStopTyping);
       socket.off("deletedId", onDeletedId);
+      socket.off("message:accepted", onMessageAccepted);
+      socket.off("message:delivered", onMessageDelivered);
+      socket.off("message:seen:update", onMessageSeen);
       socket.off("message:error", onMessageError);
       socket.disconnect();
     };

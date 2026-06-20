@@ -438,6 +438,7 @@
 }
 
 .messageContent {
+  position: relative;
   max-width: min(620px, 72%);
   padding: 11px 13px;
   border-radius: 16px;
@@ -445,6 +446,10 @@
   color: var(--text);
   border: 1px solid rgba(226, 232, 240, 0.9);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.messageContent > div[style] {
+  display: none !important;
 }
 
 .myMessage .messageContent {
@@ -477,6 +482,76 @@
   font-size: 0.72rem;
   color: inherit;
   opacity: 0.68;
+}
+
+.messageActions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+
+.messageMenuBtn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--muted);
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 140ms ease, transform 140ms ease, background 140ms ease;
+}
+
+.myMessage .messageMenuBtn {
+  background: rgba(255, 255, 255, 0.14);
+  color: #e2e8f0;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.messageContent:hover .messageMenuBtn,
+.messageContent:focus-within .messageMenuBtn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.messageMenuBtn:hover {
+  background: #ffffff;
+  color: var(--text);
+}
+
+.messageMenu {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  z-index: 10;
+  min-width: 184px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.16);
+}
+
+.messageMenu button {
+  width: 100%;
+  min-height: 36px;
+  border: none;
+  border-radius: 9px;
+  padding: 0 10px;
+  background: transparent;
+  color: var(--danger);
+  font-weight: 750;
+  text-align: left;
+  cursor: pointer;
+}
+
+.messageMenu button:hover {
+  background: #fef2f2;
 }
 
 .photo {
@@ -782,6 +857,149 @@
   box-shadow: 0 18px 46px rgba(0, 0, 0, 0.28);
 }
 
+.storageLinkBtn {
+  margin-top: 14px;
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.storageOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.46);
+  backdrop-filter: blur(8px);
+}
+
+.storageDialog {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 28px 90px rgba(15, 23, 42, 0.24);
+}
+
+.storageHeader {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.storageHeader h3 {
+  margin: 0 0 4px;
+  color: var(--text);
+  font-size: 1.15rem;
+  font-weight: 850;
+}
+
+.storageHeader p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.storageCloseBtn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.storageLoading {
+  padding: 30px 20px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.storageUsage {
+  padding: 18px 20px 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.storageUsage > div,
+.storageStatsGrid > div {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  background: #f8fafc;
+}
+
+.storageUsage span,
+.storageStatsGrid span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.storageUsage strong,
+.storageStatsGrid strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--text);
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.storageUsage p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.storageStatsGrid {
+  padding: 12px 20px 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.storageActions {
+  padding: 18px 20px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.dangerBtn {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid rgba(220, 38, 38, 0.24);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--danger);
+  font-size: 0.88rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.dangerBtn:hover {
+  background: #fef2f2;
+}
+
+.actionBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .hidden {
   display: none;
 }
@@ -888,5 +1106,18 @@
 
   .mediaImage {
     max-height: calc(100vh - 140px);
+  }
+
+  .storageOverlay {
+    padding: 12px;
+  }
+
+  .storageUsage,
+  .storageStatsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .storageActions {
+    flex-direction: column;
   }
 }

@@ -37,9 +37,6 @@ const buildDirectConversation = async (currentUser, contactDoc) => {
             ]
         });
     }
-    const unread = chat?.unreadCounts?.find(entry => entry.user === currentUser)?.count || 0;
-    const lastMessage = await buildLastMessagePreview(chat.chatId, currentUser);
-
     return {
         type: "direct",
         chatId: contactDoc.chatId,
@@ -51,9 +48,9 @@ const buildDirectConversation = async (currentUser, contactDoc) => {
         online: contact.status === "online",
         lastSeen: contact.lastSeen,
         members: [currentUser, contact.email],
-        lastMessage,
-        createdAt: lastMessage?.createdAt || chat?.createdAt || null,
-        unread
+        lastMessage: null,
+        createdAt: chat?.createdAt || null,
+        unread: 0
     };
 };
 
@@ -73,7 +70,6 @@ export const getConversations = async (req, res) => {
 
         const groups = await Promise.all(groupChats.map(async group => {
             const activeMembers = group.members.filter(member => !group.leftMembers.includes(member));
-            const lastMessage = await buildLastMessagePreview(group.chatId, currentUser);
 
             return {
                 type: "group",
@@ -83,9 +79,9 @@ export const getConversations = async (req, res) => {
                 profilePic: "",
                 members: activeMembers,
                 memberCount: activeMembers.length,
-                lastMessage,
-                createdAt: lastMessage?.createdAt || group.createdAt || null,
-                unread: group.unreadCounts?.find(entry => entry.user === currentUser)?.count || 0
+                lastMessage: null,
+                createdAt: group.createdAt || null,
+                unread: 0
             };
         }));
 
